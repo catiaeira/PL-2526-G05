@@ -11,7 +11,7 @@ import ply.lex as lex
 # com colunas fixas
 
 keywords = [
-            'ASSIGN', 'BACKSPACE', 'BLOCKDATA', 'CALL', 'CLOSE', 
+            'ASSIGN', 'TO', 'BACKSPACE', 'BLOCKDATA', 'CALL', 'CLOSE', 
             'COMMON', 'CONTINUE', 'DATA', 'DIMENSION', 
             'DO', 'ELSE', 'ELSEIF', 'END', 'ENDFILE', 'ENDIF', 
             'ENTRY', 'EQUIVALENCE', 'EXTERNAL', 'FORMAT', 'FUNCTION', 
@@ -37,9 +37,13 @@ states = (
 
 # INITIAL state rules (cols 1-6)
 # starts with C, c, *, or ! in column 1
-def t_COMMENT(t):
+def t_INITIAL_comment(t):
     r'[Cc\*!][^\n]*'
     pass 
+
+def t_INITIAL_blank(t):
+    r'[ ]*\n'
+    t.lexer.lineno += 1
 
 # no labels, transition to statement
 def t_INITIAL_spaces(t):
@@ -193,37 +197,40 @@ def t_stmt_error(t):
     print(f"Illegal character: '{t.value[0]}' at line {t.lineno}")
     t.lexer.skip(1)
 
+class LexError(Exception):
+  pass
+
 lexer = lex.lex()
 
-def main():
-    test_code = '''
-C     This is a comment
-      PROGRAM HELLO
-      INTEGER I, J
-      REAL X
-      DOUBLE PRECISION Y
-      CHARACTER*10 NAME ! comment
-      
-      X = 3.14
-      Y = 2.718D0
-      I = 42
-      NAME = 'WORLD'
-      
-      DO 10 I = 1, 10
-        IF (I .GT. 5) THEN
-          PRINT *, 'BIG'
-        ELSE
-          PRINT *, 'SMALL'
-        ENDIF
-   10 CONTINUE
-      
-      STOP
-      END
-'''
-    lexer.input(test_code)
-    
-    for tok in lexer:
-        print(tok)
-
-if __name__ == '__main__':
-    main()
+#def main():
+#    test_code = '''
+#C     This is a comment
+#      PROGRAM HELLO
+#      INTEGER I, J
+#      REAL X
+#      DOUBLE PRECISION Y
+#      CHARACTER*10 NAME ! comment
+#      
+#      X = 3.14
+#      Y = 2.718D0
+#      I = 42
+#      NAME = 'WORLD'
+#      
+#      DO 10 I = 1, 10
+#        IF (I .GT. 5) THEN
+#          PRINT *, 'BIG'
+#        ELSE
+#          PRINT *, 'SMALL'
+#        ENDIF
+#   10 CONTINUE
+#      
+#      STOP
+#      END
+#'''
+#    lexer.input(test_code)
+#    
+#    for tok in lexer:
+#        print(tok)
+#
+#if __name__ == '__main__':
+#    main()
