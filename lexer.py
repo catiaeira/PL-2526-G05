@@ -1,33 +1,37 @@
 import ply.lex as lex
+import re as re
 
-# Análise Léxica
-# . Implementar um analisador léxico (lexer) para converter código Fortran numa lista de tokens;
-# . Usar a ferramenta ply.lex, na implementação do analisador léxico;
-# . Identificar palavras-chave ( PROGRAM, INTEGER, REAL, LOGICAL, IF, DO, GOTO, etc.), identificadores,
-# números, operadores e símbolos especiais.
-# Nota: O grupo deve decidir se suportará o formato de colunas fixas do Fortran 77 ou o formato
-# livre (free-form) das versões mais modernas.
+class LexError(Exception):
+    pass
 
-# com colunas fixas
+keywords = {
+    'ASSIGN': 'ASSIGN', 'TO': 'TO', 'BACKSPACE': 'BACKSPACE',
+    'BLOCKDATA': 'BLOCKDATA', 'CALL': 'CALL', 'CLOSE': 'CLOSE',
+    'COMMON': 'COMMON', 'CONTINUE': 'CONTINUE', 'DATA': 'DATA',
+    'DIMENSION': 'DIMENSION', 'DO': 'DO', 'ELSE': 'ELSE',
+    'ELSEIF': 'ELSEIF', 'END': 'END', 'ENDFILE': 'ENDFILE',
+    'ENDIF': 'ENDIF', 'ENTRY': 'ENTRY', 'EQUIVALENCE': 'EQUIVALENCE',
+    'EXTERNAL': 'EXTERNAL', 'FORMAT': 'FORMAT', 'FUNCTION': 'FUNCTION',
+    'GOTO': 'GOTO', 'IF': 'IF', 'IMPLICIT': 'IMPLICIT',
+    'INQUIRE': 'INQUIRE', 'INTRINSIC': 'INTRINSIC', 'OPEN': 'OPEN',
+    'PARAMETER': 'PARAMETER', 'PAUSE': 'PAUSE', 'PRINT': 'PRINT',
+    'PROGRAM': 'PROGRAM', 'READ': 'READ', 'RETURN': 'RETURN',
+    'REWIND': 'REWIND', 'REWRITE': 'REWRITE', 'SAVE': 'SAVE',
+    'STOP': 'STOP', 'SUBROUTINE': 'SUBROUTINE', 'THEN': 'THEN',
+    'WRITE': 'WRITE', 'INTEGER': 'INTEGER', 'REAL': 'REAL',
+    'CHARACTER': 'CHARACTER', 'COMPLEX': 'COMPLEX',
+    'LOGICAL': 'LOGICAL', 'DOUBLEPRECISION': 'DOUBLEPRECISION',
+}
 
-keywords = [
-            'ASSIGN', 'TO', 'BACKSPACE', 'BLOCKDATA', 'CALL', 'CLOSE', 
-            'COMMON', 'CONTINUE', 'DATA', 'DIMENSION', 
-            'DO', 'ELSE', 'ELSEIF', 'END', 'ENDFILE', 'ENDIF', 
-            'ENTRY', 'EQUIVALENCE', 'EXTERNAL', 'FORMAT', 'FUNCTION', 
-            'GOTO', 'IF', 'IMPLICIT', 'INQUIRE', 'INTRINSIC', 'OPEN', 
-            'PARAMETER', 'PAUSE', 'PRINT', 'PROGRAM', 'READ', 'RETURN', 
-            'REWIND', 'REWRITE', 'SAVE', 'STOP', 'SUBROUTINE', 'THEN', 
-            'WRITE', 'INTEGER', 'REAL', 'CHARACTER', 'COMPLEX', 'LOGICAL', 
-            'DOUBLEPRECISION'
-            ]
 tokens = [
-        'ID', 'INT_LITERAL', 'REAL_LITERAL', 'DOUBLE_LITERAL', 'STRING_LITERAL', 'HOLLERITH',
-        'EQ', 'NE', 'LT', 'LE', 'GT', 'GE',
-        'AND', 'OR', 'NOT', 'EQV', 'NEQV', 'TRUE', 'FALSE',
-        'POWER','CONCAT',
-        'NEWLINE', 'CONTINUATION', 'LABEL'
-        ] + keywords
+    'ID', 'INT_LITERAL', 'REAL_LITERAL', 'DOUBLE_LITERAL',
+    'STRING_LITERAL', 'HOLLERITH',
+    'EQ', 'NE', 'LT', 'LE', 'GT', 'GE',
+    'AND', 'OR', 'NOT', 'EQV', 'NEQV',
+    'TRUE', 'FALSE',
+    'POWER', 'CONCAT',
+    'NEWLINE', 'CONTINUATION', 'LABEL'
+] + list(keywords.values())
 
 literals = ['(', ')', ',', ':', '+', '-', '*', '/', '=']
 
@@ -35,202 +39,192 @@ states = (
     ('stmt', 'exclusive'),
 )
 
-# INITIAL state rules (cols 1-6)
-# starts with C, c, *, or ! in column 1
-def t_INITIAL_comment(t):
-    r'[Cc\*!][^\n]*'
-    pass 
 
-def t_INITIAL_blank(t):
-    r'[ ]*\n'
-    t.lexer.lineno += 1
+class FortranLexer:
+    # PLY requires tokens to be visible as a class attribute when using module=self
+    tokens = tokens
+    literals = literals
+    states = states
 
-# no labels, transition to statement
-def t_INITIAL_spaces(t):
-    r'[ ]{6}'
-    t.lexer.begin('stmt')
+    def __init__(self):
+        self.lexer = lex.lex(module=self, reflags=re.MULTILINE)
+        self.errors = []
 
-# label in columns 1-5, then column 6, then statement
-def t_INITIAL_LABEL(t):
-    r'[ ]{0,4}\d{1,5}[ ]'
-    t.lexer.begin('stmt')
-    t.value = int(t.value.strip())
-    t.type = 'LABEL'
-    return t
+    def input(self, data):
+        self.errors.clear()
+        self.lexer.input(data)
 
-# continuation field
-def t_INITIAL_continuation(t):
-    r'[ ]{5}[^ 0\n]'
-    t.lexer.begin('stmt')
+    def token(self):
+        return self.lexer.token()
 
-def t_INITIAL_newline(t):
-    r'\n'
-    t.lexer.lineno += 1
+    # ---------- INITIAL (cols 1–6) ----------
 
-def t_INITIAL_skip(t):
-    r'[ \t]+'
-    pass
+    def t_INITIAL_comment(self, t):
+        r'^[Cc\*].*'
+        pass
 
-def t_INITIAL_error(t):
-    print(f"Illegal character in columns 1-6: '{t.value[0]}' at line {t.lineno}")
-    t.lexer.skip(1)
+    def t_INITIAL_blank(self, t):
+        r'[ ]*\n'
+        t.lexer.lineno += 1
 
+    def t_INITIAL_LABEL(self, t):
+        r'^[ ]{0,4}\d{1,5}'
+        t.value = int(t.value.strip())
+        t.type = 'LABEL'
+        return t
 
-# STATEMENT state rules (cols 7+)
-# return to INITIAL
-def t_stmt_NEWLINE(t):
-    r'\n'
-    t.lexer.lineno += 1
-    t.lexer.begin('INITIAL')
-    return t
+    def t_INITIAL_continuation(self, t):
+        r'^[ ]{5}[^ 0\n]'
+        t.type = 'CONTINUATION'
+        t.lexer.begin('stmt')
+        return t
 
-def t_stmt_INLINE_COMMENT(t):
-    r'![^\n]*'
-    pass
+    def t_INITIAL_to_stmt(self, t):
+        r'^[ ]{6}'
+        t.lexer.begin('stmt')
 
-t_stmt_POWER = r'\*\*'
-t_stmt_CONCAT = r'//'
+    def t_INITIAL_newline(self, t):
+        r'\n'
+        t.lexer.lineno += 1
 
-def t_stmt_EQ(t):
-    r'\.EQ\.'
-    return t
+    t_INITIAL_ignore = ' \t'
 
-def t_stmt_NE(t):
-    r'\.NE\.'
-    return t
+    def t_INITIAL_error(self, t):
+        self.errors.append(
+            LexError(f"Illegal char in columns 1–6: '{t.value[0]}' at line {t.lineno}")
+        )
+        t.lexer.skip(1)
 
-def t_stmt_LE(t):
-    r'\.LE\.'
-    return t
+    # ---------- STATEMENT (cols 7+) ----------
 
-def t_stmt_LT(t):
-    r'\.LT\.'
-    return t
+    def t_stmt_NEWLINE(self, t):
+        r'\n'
+        t.lexer.lineno += 1
+        t.lexer.begin('INITIAL')
+        return t
 
-def t_stmt_GE(t):
-    r'\.GE\.'
-    return t
+    def t_stmt_COMMENT(self, t):
+        r'![^\n]*'
+        pass
 
-def t_stmt_GT(t):
-    r'\.GT\.'
-    return t
+    # was missing self — caused "Rule requires an argument" error
+    def t_stmt_DOUBLEPRECISION(self, t):
+        r'DOUBLE\s+PRECISION'
+        return t
 
-def t_stmt_AND(t):
-    r'\.AND\.'
-    return t
+    # multi-char operators — must be methods, not string attributes, inside a class
+    def t_stmt_POWER(self, t):
+        r'\*\*'
+        return t
 
-def t_stmt_OR(t):
-    r'\.OR\.'
-    return t
+    def t_stmt_CONCAT(self, t):
+        r'//'
+        return t
 
-def t_stmt_NOT(t):
-    r'\.NOT\.'
-    return t
+    def t_stmt_EQ(self, t):
+        r'\.EQ\.'
+        return t
 
-def t_stmt_EQV(t):
-    r'\.EQV\.'
-    return t
+    def t_stmt_NE(self, t):
+        r'\.NE\.'
+        return t
 
-def t_stmt_NEQV(t):
-    r'\.NEQV\.'
-    return t
+    def t_stmt_LE(self, t):
+        r'\.LE\.'
+        return t
 
-def t_stmt_TRUE(t):
-    r'\.TRUE\.'
-    t.value = True
-    return t
+    def t_stmt_LT(self, t):
+        r'\.LT\.'
+        return t
 
-def t_stmt_FALSE(t):
-    r'\.FALSE\.'
-    t.value = False
-    return t
+    def t_stmt_GE(self, t):
+        r'\.GE\.'
+        return t
 
-# D exponent
-def t_stmt_DOUBLE_LITERAL(t):
-    r'(\d+\.\d*|\.\d+|\d+)[Dd][+-]?\d+'
-    t.value = float(t.value.replace('D', 'E').replace('d', 'e'))
-    return t
+    def t_stmt_GT(self, t):
+        r'\.GT\.'
+        return t
 
-# decimal point or E exponent
-def t_stmt_REAL_LITERAL(t):
-    r'(\d+\.\d*|\.\d+)([Ee][+-]?\d+)?|\d+[Ee][+-]?\d+'
-    t.value = float(t.value)
-    return t
+    def t_stmt_AND(self, t):
+        r'\.AND\.'
+        return t
 
-def t_stmt_INT_LITERAL(t):
-    r'\d+'
-    t.value = int(t.value)
-    return t
+    def t_stmt_OR(self, t):
+        r'\.OR\.'
+        return t
 
-def t_stmt_STRING_LITERAL(t):
-    r"'([^']|'')*'"
-    t.value = t.value[1:-1].replace("''", "'")
-    return t
+    def t_stmt_NOT(self, t):
+        r'\.NOT\.'
+        return t
 
-# nH followed by n characters: 3HBYE -> BYE
-def t_stmt_HOLLERITH(t):
-    r'\d+[Hh]'
-    count = int(t.value[:-1])
-    start = t.lexer.lexpos
-    t.value = t.lexer.lexdata[start:start + count]
-    t.lexer.lexpos += count
-    return t
+    def t_stmt_EQV(self, t):
+        r'\.EQV\.'
+        return t
 
-def t_stmt_ID(t):
-    r'[A-Za-z][A-Za-z0-9]*'
-    upper = t.value.upper()
-    if upper in keywords:
-        t.type = upper
+    def t_stmt_NEQV(self, t):
+        r'\.NEQV\.'
+        return t
+
+    def t_stmt_TRUE(self, t):
+        r'\.TRUE\.'
+        t.value = True
+        return t
+
+    def t_stmt_FALSE(self, t):
+        r'\.FALSE\.'
+        t.value = False
+        return t
+
+    def t_stmt_DOUBLE_LITERAL(self, t):
+        r'(\d+\.\d*|\.\d+|\d+)[Dd][+-]?\d+'
+        t.value = float(t.value.replace('D', 'E').replace('d', 'e'))
+        return t
+
+    def t_stmt_REAL_LITERAL(self, t):
+        r'(\d+\.\d*|\.\d+)([Ee][+-]?\d+)?|\d+[Ee][+-]?\d+'
+        t.value = float(t.value)
+        return t
+
+    def t_stmt_INT_LITERAL(self, t):
+        r'\d+'
+        t.value = int(t.value)
+        return t
+
+    def t_stmt_STRING_LITERAL(self, t):
+        r"'([^']|'')*'"
+        t.value = t.value[1:-1].replace("''", "'")
+        return t
+
+    def t_stmt_HOLLERITH(self, t):
+        r'\d+[Hh]'
+        count = int(t.value[:-1])
+        start = t.lexer.lexpos
+        t.value = t.lexer.lexdata[start:start + count]
+        t.lexer.lexpos += count
+        return t
+
+    def t_stmt_ID(self, t):
+        r'[A-Za-z][A-Za-z0-9]*'
+        upper = t.value.upper()
+        t.type = keywords.get(upper, 'ID')
         t.value = upper
-    else:
-        t.value = upper
-    return t
+        return t
 
-t_stmt_ignore = ' \t'
+    t_stmt_ignore = ' \t'
 
-def t_stmt_literal(t):
-    r'[(),:\+\-\*/=]'
-    t.type = t.value
-    return t
+    def t_stmt_literal(self, t):
+        r'[(),:\+\-\*/=]'
+        t.type = t.value
+        return t
 
-def t_stmt_error(t):
-    print(f"Illegal character: '{t.value[0]}' at line {t.lineno}")
-    t.lexer.skip(1)
+    # was missing the docstring regex entirely
+    def t_stmt_error(self, t):
+        r'.'
+        self.errors.append(
+            LexError(f"Illegal character '{t.value[0]}' at line {t.lineno}")
+        )
+        t.lexer.skip(1)
 
-class LexError(Exception):
-  pass
 
-lexer = lex.lex()
-
-#def main():
-#    test_code = '''
-#C     This is a comment
-#      PROGRAM HELLO
-#      INTEGER I, J
-#      REAL X
-#      DOUBLE PRECISION Y
-#      CHARACTER*10 NAME ! comment
-#      
-#      X = 3.14
-#      Y = 2.718D0
-#      I = 42
-#      NAME = 'WORLD'
-#      
-#      DO 10 I = 1, 10
-#        IF (I .GT. 5) THEN
-#          PRINT *, 'BIG'
-#        ELSE
-#          PRINT *, 'SMALL'
-#        ENDIF
-#   10 CONTINUE
-#      
-#      STOP
-#      END
-#'''
-#    lexer.input(test_code)
-#    
-#    for tok in lexer:
-#        print(tok)
-#
-#if __name__ == '__main__':
-#    main()
+def build_lexer():
+    return FortranLexer()
