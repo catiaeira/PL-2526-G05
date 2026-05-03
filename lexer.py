@@ -41,7 +41,6 @@ states = (
 
 
 class FortranLexer:
-    # PLY requires tokens to be visible as a class attribute when using module=self
     tokens = tokens
     literals = literals
     states = states
@@ -71,6 +70,12 @@ class FortranLexer:
         r'^[ ]{0,4}\d{1,5}'
         t.value = int(t.value.strip())
         t.type = 'LABEL'
+
+        line_start = t.lexer.lexdata.rfind('\n', 0, t.lexpos) + 1
+        current_col = t.lexpos - line_start
+        
+        # eat col 6 and start reading code
+        t.lexer.begin('stmt')
         return t
 
     def t_INITIAL_continuation(self, t):
@@ -86,8 +91,6 @@ class FortranLexer:
     def t_INITIAL_newline(self, t):
         r'\n'
         t.lexer.lineno += 1
-
-    t_INITIAL_ignore = ' \t'
 
     def t_INITIAL_error(self, t):
         self.errors.append(
@@ -107,12 +110,10 @@ class FortranLexer:
         r'![^\n]*'
         pass
 
-    # was missing self — caused "Rule requires an argument" error
     def t_stmt_DOUBLEPRECISION(self, t):
         r'DOUBLE\s+PRECISION'
         return t
 
-    # multi-char operators — must be methods, not string attributes, inside a class
     def t_stmt_POWER(self, t):
         r'\*\*'
         return t
@@ -217,7 +218,10 @@ class FortranLexer:
         t.type = t.value
         return t
 
-    # was missing the docstring regex entirely
+    def t_stmt_CONTINUE(self, t):
+        r'CONTINUE'
+        return t
+
     def t_stmt_error(self, t):
         r'.'
         self.errors.append(

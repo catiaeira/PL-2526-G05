@@ -11,6 +11,9 @@ class SymbolTable:
     def pop(self):
         self.__table.pop()
 
+    def clear_local_scope(self):
+        self.__table = [{}]
+
     # ---- LOOKUPS ----
 
     def lookup(self, id):

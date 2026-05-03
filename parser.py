@@ -9,15 +9,37 @@ class ParseError(Exception):
 # TOP LEVEL
 # ─────────────────────────────────────────────
 
-# PROGRAM 'hello'
+# PROGRAM hello
 # ...
 # (end of file)
+
+def p_code(p):
+    r"""
+    Code : Code CodeSegment
+         | CodeSegment
+    """
+    if len(p) == 3:
+        p[1].append(p[2])
+        p[0] = p[1]
+    else:
+        p[0] = [p[1]]
+
+def p_codeSegment(p):
+    r"""
+    CodeSegment : Program
+                | SubroutineDeclaration
+    """
+    p[0] = p[1]
+
 def p_program(p):
     r"""
-    Program : PROGRAM STRING_LITERAL NEWLINE Statements END NEWLINE
+    Program : PROGRAM ID NEWLINE Statements END OptNewline
     """
     p.parser.symbols.check_undefined_labels()
     p[0] = {"type": "program", "name": p[2], "body": p[4]}
+    
+    # reset local symbols/labels for the next Subroutine
+    p.parser.symbols.clear_local_scope()
 
 # a sequence of one or more statements
 #   x = 1
@@ -62,6 +84,15 @@ def p_statement(p):
               | Continuation
     """
     p[0] = p[1]
+
+# CONTINUATION lines arrive as a token from the lexer (col 6 non-blank/non-zero)
+# they are transparently joined to the previous line, so the parser
+# never sees them as a standalone statement — we consume the token silently
+def p_continuation(p):
+    r"""
+    Continuation : CONTINUATION
+    """
+    p[0] = None
 
 # ─────────────────────────────────────────────
 # DATA TYPES
@@ -469,16 +500,16 @@ def p_else_clause(p):
 # 10 CONTINUE
 def p_do_loop(p):
     r"""
-    DoLoop : DO INT_LITERAL ID "=" Expression "," Expression NEWLINE Statements CONTINUE NEWLINE
-           | DO INT_LITERAL ID "=" Expression "," Expression "," Expression NEWLINE Statements CONTINUE NEWLINE
+    DoLoop : DO INT_LITERAL ID "=" Expression "," Expression NEWLINE Statements LabeledStatement
+           | DO INT_LITERAL ID "=" Expression "," Expression "," Expression NEWLINE Statements LabeledStatement
     """
     p.parser.symbols.define_label(p[2])
-    if len(p) == 12:
+    if len(p) == 11:
         p[0] = {"type": "do", "label": p[2], "var": p[3],
-                "start": p[5], "stop": p[7], "step": None, "body": p[9]}
+                "start": p[5], "stop": p[7], "step": None, "body": p[9], "end" : p[10]}
     else:
         p[0] = {"type": "do", "label": p[2], "var": p[3],
-                "start": p[5], "stop": p[7], "step": p[9], "body": p[11]}
+                "start": p[5], "stop": p[7], "step": p[9], "body": p[11], "end" : p[12]}
 
 # 10 CONTINUE  ← loop target label (also valid as a standalone no-op)
 def p_continue_statement(p):
@@ -487,14 +518,18 @@ def p_continue_statement(p):
     """
     p[0] = {"type": "continue"}
 
-# CONTINUATION lines arrive as a token from the lexer (col 6 non-blank/non-zero)
-# they are transparently joined to the previous line, so the parser
-# never sees them as a standalone statement — we consume the token silently
-def p_continuation(p):
+
+
+def p_labeled_statement(p):
     r"""
-    Continuation : CONTINUATION
+    LabeledStatement : LABEL Statement NEWLINE
+                     | LABEL ContinueStatement
     """
-    p[0] = None
+    if p[2] == "CONTINUE":
+        p[0] = p[2]
+    else:
+        p[0] = {"type": "statement", "body": p[2]}
+
 
 # ─────────────────────────────────────────────
 # CONTROL FLOW — GOTO
@@ -683,6 +718,7 @@ def p_expression_list(p):
 def p_expression(p):
     r"""
     Expression : LogicalExpression
+               | ArithmeticExpression
     """
     p[0] = p[1]
 
@@ -901,6 +937,13 @@ def p_num_or_index(p):
 # ─────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────
+
+def p_opt_newline(p):
+    r"""
+    OptNewline : NEWLINE
+               | empty
+    """
+    pass
 
 # matches nothing — used for optional parts of rules
 def p_empty(p):

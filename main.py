@@ -9,10 +9,11 @@ def dump_tokens(text):
         tok = lex.token()
         if not tok:
             break
-        print(f"  L{tok.lineno:3}  {tok.type:<20} {repr(tok.value)}")
+        print(f"  L{tok.lineno:3}  {tok.type:<20} {repr(tok.value)} {tok.lexpos}")
 
 def main():
-    code = """      PROGRAM MAIN
+    code = """\
+      PROGRAM MAIN
       INTEGER A, B
       READ(*,*) A
       B = A * 10
@@ -30,15 +31,16 @@ def main():
       PRINT *, VAL
       END
 """
-    test_code = '''      PROGRAM HELLO
-      PRINT *, 'Ola, Mundo!'
-      END
+    test_code = '''\
+        PROGRAM HELLO
+        PRINT *, 'Ola, Mundo!'
+        END
 '''
 
     print("=== TOKENS ===")
-    dump_tokens(test_code)
+    dump_tokens(code)
     print("=== PARSE ===")
-    result = fortran_parser.parse(test_code, debug=True)
+    result = fortran_parser.parse(code)
     print(result)
 
 if __name__ == '__main__':
