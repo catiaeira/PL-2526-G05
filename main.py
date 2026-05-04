@@ -9,7 +9,7 @@ def dump_tokens(text):
         tok = lex.token()
         if not tok:
             break
-        print(f"  L{tok.lineno:3}  {tok.type:<20} {repr(tok.value)} {tok.lexpos}")
+        print(f"  L{tok.lineno:3}  {tok.type:<20} {repr(tok.value)}: {tok.lexpos}")
 
 def main():
     code = """\

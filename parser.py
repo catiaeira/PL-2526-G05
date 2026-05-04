@@ -56,15 +56,14 @@ def p_statements(p):
         p[0] = p[1] + [p[2]]
 
 # any single executable or declarative line
-#   PRINT *, X        ← Print
-#   INTEGER I         ← VariableDeclaration
-#   IF (X .GT. 0) ... ← IfStatement
+#   PRINT *, X        <- Print
+#   INTEGER I         <- VariableDeclaration
+#   IF (X .GT. 0) ... <- IfStatement
 def p_statement(p):
     r"""
     Statement : Assignment
               | VariableDeclaration
               | FunctionDeclaration
-              | SubroutineDeclaration
               | Print
               | Write
               | Read
@@ -110,7 +109,6 @@ def p_data_type(p):
              | DOUBLEPRECISION
              | LOGICAL
              | COMPLEX
-             | empty
     """
     p[0] = "void" if p[1] is None else p[1]
 
@@ -154,8 +152,8 @@ def p_variable_declarator(p):
     else:
         p[0] = {"name": p[1], "dims": p[3]}
 
-# A(10, 20)   ← two DimSpecs
-# B(5)        ← one DimSpec
+# A(10, 20)   <- two DimSpecs
+# B(5)        <- one DimSpec
 def p_dim_list(p):
     r"""
     DimList : DimList "," DimSpec
@@ -170,8 +168,8 @@ def p_dim_list(p):
 # explicit range:      1:10
 def p_dim_spec(p):
     r"""
-    DimSpec : Expression
-            | Expression ":" Expression
+    DimSpec : ArithmeticExpression
+            | ArithmeticExpression ":" ArithmeticExpression
     """
     if len(p) == 2:
         p[0] = {"upper": p[1]}
@@ -215,8 +213,8 @@ def p_param_def(p):
     #p.parser.symbols.initialize(p[1])
     p[0] = {"name": p[1], "value": p[3]}
 
-# COMMON /BLOCK1/ X, Y  ← named block
-# COMMON A, B           ← blank common
+# COMMON /BLOCK1/ X, Y  <- named block
+# COMMON A, B           <- blank common
 def p_common_statement(p):
     r"""
     CommonStatement : COMMON CommonBlockList NEWLINE
@@ -238,7 +236,7 @@ def p_common_block_list(p):
 # blank:   A, B
 def p_common_block(p):
     r"""
-    CommonBlock : "/" ID "/" VariableList
+    CommonBlock : COMMON_SLASH ID COMMON_SLASH VariableList
                 | VariableList
     """
     if len(p) == 5:
@@ -246,8 +244,8 @@ def p_common_block(p):
     else:
         p[0] = {"block": None, "vars": p[1]}
 
-# SAVE X, Y    ← keep specific variables between calls
-# SAVE         ← keep all local variables
+# SAVE X, Y    <- keep specific variables between calls
+# SAVE         <- keep all local variables
 def p_save_statement(p):
     r"""
     SaveStatement : SAVE VariableList NEWLINE
@@ -275,10 +273,10 @@ def p_data_item_list(p):
         p[0] = p[1] + [p[2]]
 
 # A(1), A(2) /0.0, 1.0/
-# X /3*0.0/   ← repeat count: 3 copies of 0.0
+# X /3*0.0/   <- repeat count: 3 copies of 0.0
 def p_data_item(p):
     r"""
-    DataItem : VariableList "/" DataValueList "/"
+    DataItem : VariableList DATA_SLASH DataValueList DATA_SLASH
     """
     p[0] = {"vars": p[1], "values": p[3]}
 
@@ -298,7 +296,7 @@ def p_data_value_list(p):
 def p_data_value(p):
     r"""
     DataValue : Expression
-              | INT_LITERAL "*" Expression
+              | INT_LITERAL_DATA "*" Expression
     """
     if len(p) == 2:
         p[0] = p[1]
@@ -323,7 +321,7 @@ def p_equiv_group_list(p):
     else:
         p[0] = p[1] + [p[3]]
 
-# (A, B)  ← A and B share the same memory location
+# (A, B)  <- A and B share the same memory location
 def p_equiv_group(p):
     r"""
     EquivGroup : "(" VariableList ")"
@@ -372,8 +370,8 @@ def p_subroutine_declaration(p):
     #p.parser.symbols.pop()
     p[0] = {"type": "subroutine", "name": name, "params": params, "body": p[7]}
 
-# ADD(A, B)  →  Parameters = [A, B]
-# NONE       →  Parameters = []
+# ADD(A, B)  ->  Parameters = [A, B]
+# NONE       ->  Parameters = []
 def p_parameters(p):
     r"""
     Parameters : Parameters "," Parameter
@@ -479,7 +477,7 @@ def p_do_loop(p):
         p[0] = {"type": "do", "label": p[2], "var": p[3],
                 "start": p[5], "stop": p[7], "step": p[9], "body": p[11], "end" : p[12]}
 
-# 10 CONTINUE  ← loop target label (also valid as a standalone no-op)
+# 10 CONTINUE  <- loop target label (also valid as a standalone no-op)
 def p_continue_statement(p):
     r"""
     ContinueStatement : CONTINUE NEWLINE
@@ -488,8 +486,7 @@ def p_continue_statement(p):
 
 def p_labeled_statement(p):
     r"""
-    LabeledStatement : LABEL Statement NEWLINE
-                     | LABEL ContinueStatement
+    LabeledStatement : LABEL Statement
     """
     if p[2] == "CONTINUE":
         p[0] = p[2]
@@ -502,7 +499,7 @@ def p_labeled_statement(p):
 # ─────────────────────────────────────────────
 
 # unconditional:  GOTO 100
-# computed:       GOTO (10, 20, 30), I  ← jumps to label 10, 20, or 30 based on I
+# computed:       GOTO (10, 20, 30), I  <- jumps to label 10, 20, or 30 based on I
 def p_goto_statement(p):
     r"""
     GotoStatement : GOTO INT_LITERAL NEWLINE
@@ -534,7 +531,7 @@ def p_label_list(p):
 # without args: CALL INIT
 def p_call_statement(p):
     r"""
-    CallStatement : CALL ID "(" ArgList ")" NEWLINE
+    CallStatement : CALL ID "(" OptExpressionList ")" NEWLINE
                   | CALL ID NEWLINE
     """
     name = p[2]
@@ -547,18 +544,6 @@ def p_call_statement(p):
     else:
         p[0] = {"type": "call", "name": name, "args": []}
 
-# SWAP(A, B)  →  ArgList = [A, B]
-# SIN(X)      →  ArgList = [X]
-def p_arg_list(p):
-    r"""
-    ArgList : ArgList "," Expression
-            | Expression
-            | empty
-    """
-    if len(p) == 2:
-        p[0] = [] if p[1] is None else [p[1]]
-    else:
-        p[0] = p[1] + [p[3]]
 
 # plain return:        RETURN
 # alternate return:    RETURN 1  (jumps to 1st * label in caller's arg list)
@@ -618,8 +603,8 @@ def p_read(p):
         p[0] = {"type": "read", "controls": p[3],
                 "items": p[5] if len(p) == 7 else []}
 
-# (*, *)       ← unit=*, format=*
-# (6, 100)     ← unit=6, format label=100
+# (*, *)       <- unit=*, format=*
+# (6, 100)     <- unit=6, format label=100
 # (UNIT=6, FMT=100, ERR=99)
 def p_io_control_list(p):
     r"""
@@ -631,9 +616,9 @@ def p_io_control_list(p):
     else:
         p[0] = p[1] + [p[3]]
 
-# *            ← wildcard (list-directed)
-# 6            ← unit or format label
-# UNIT=6       ← keyword form
+# *            <- wildcard (list-directed)
+# 6            <- unit or format label
+# UNIT=6       <- keyword form
 def p_io_control(p):
     r"""
     IOControl : "*"
@@ -653,8 +638,8 @@ def p_io_control(p):
 # ASSIGN:   ASSIGN 100 TO ILABEL  (stores label number in variable)
 def p_assignment(p):
     r"""
-    Assignment : Variable "=" Expression NEWLINE
-               | ASSIGN INT_LITERAL TO Variable NEWLINE
+    Assignment : LValue "=" Expression NEWLINE
+               | ASSIGN INT_LITERAL TO LValue NEWLINE
     """
     if p[2] == "=":
         #var = p[1]["name"]
@@ -664,6 +649,17 @@ def p_assignment(p):
         #var = p[4]["name"]
         #p.parser.symbols.initialize(var)
         p[0] = {"type": "assign", "label": p[2], "variable": p[4]}
+
+def p_lvalue(p):
+    r"""
+    LValue : ID
+           | ID "(" ExpressionList ")"
+    """
+    if len(p) == 2:
+        p[0] = {"node": "var", "name": p[1]}
+    else:
+        p[0] = {"node": "subscript", "name": p[1], "indices": p[3]}
+
 
 # ─────────────────────────────────────────────
 # EXPRESSIONS
@@ -680,17 +676,24 @@ def p_expression_list(p):
     else:
         p[0] = p[1] + [p[3]]
 
+# allows empty parentheses like CALL SUB())
+def p_opt_expression_list(p):
+    r"""
+    OptExpressionList : ExpressionList
+                      | empty
+    """
+    p[0] = p[1] if p[1] is not None else []
+
 # entry point: every expression goes through the precedence tower
 def p_expression(p):
     r"""
     Expression : LogicalExpression
-               | ArithmeticExpression
     """
     p[0] = p[1]
 
 # lowest precedence: .EQV. and .NEQV.
-#   A .EQV. B    ← true if A and B have the same logical value
-#   A .NEQV. B   ← true if they differ
+#   A .EQV. B    <- true if A and B have the same logical value
+#   A .NEQV. B   <- true if they differ
 def p_logical_expression_eqv(p):
     r"""
     LogicalExpression : LogicalExpression EQV LogicalOrExpr
@@ -702,7 +705,7 @@ def p_logical_expression_eqv(p):
     else:
         p[0] = {"type": "binop", "op": p[2], "left": p[1], "right": p[3]}
 
-# .OR.  ← true if either operand is true
+# .OR.  <- true if either operand is true
 #   X .GT. 0 .OR. Y .GT. 0
 def p_logical_or(p):
     r"""
@@ -714,7 +717,7 @@ def p_logical_or(p):
     else:
         p[0] = {"type": "binop", "op": ".OR.", "left": p[1], "right": p[3]}
 
-# .AND.  ← true if both operands are true
+# .AND.  <- true if both operands are true
 #   X .GT. 0 .AND. Y .GT. 0
 def p_logical_and(p):
     r"""
@@ -726,7 +729,7 @@ def p_logical_and(p):
     else:
         p[0] = {"type": "binop", "op": ".AND.", "left": p[1], "right": p[3]}
 
-# .NOT.  ← logical negation
+# .NOT.  <- logical negation
 #   .NOT. FLAG
 def p_logical_not(p):
     r"""
@@ -775,7 +778,7 @@ def p_arithmetic_add(p):
 def p_term(p):
     r"""
     Term : Term "*" PowerExpr
-         | Term "/" PowerExpr
+         | Term SLASH PowerExpr
          | PowerExpr
     """
     if len(p) == 2:
@@ -811,14 +814,14 @@ def p_unary_expr(p):
         p[0] = {"type": "unop", "op": p[1], "operand": p[2]}
 
 # atomic values: literals, variables, function calls, parenthesised expressions
-#   42        ← INT_LITERAL
-#   3.14      ← REAL_LITERAL
-#   1.0D-10   ← DOUBLE_LITERAL
-#   'hello'   ← STRING_LITERAL
-#   .TRUE.    ← TRUE
-#   X         ← Variable
-#   SIN(X)    ← FunctionCall
-#   (A + B)   ← parenthesised expression
+#   42        <- INT_LITERAL
+#   3.14      <- REAL_LITERAL
+#   1.0D-10   <- DOUBLE_LITERAL
+#   'hello'   <- STRING_LITERAL
+#   .TRUE.    <- TRUE
+#   X         <- Variable     -> VarOrFunCall
+#   SIN(X)    <- FunctionCall -> VarOrFunCall
+#   (A + B)   <- parenthesised expression
 def p_primary(p):
     r"""
     Primary : INT_LITERAL
@@ -827,32 +830,13 @@ def p_primary(p):
             | STRING_LITERAL
             | TRUE
             | FALSE
-            | Variable
-            | FunctionCall
+            | VarOrFunCall
             | "(" Expression ")"
     """
     if len(p) == 4:
         p[0] = p[2]
     else:
         p[0] = p[1]
-
-# intrinsic or user-defined function call used inside an expression
-#   SIN(X)
-#   MAX(A, B, C)
-def p_function_call(p):
-    r"""
-    FunctionCall : ID "(" ArgList ")"
-    """
-    name = p[1]
-    #try:
-        #p.parser.symbols.lookup_fun(name)
-    #except SemanticError:
-        #pass  # intrinsic functions won't be in the symbol table
-    p[0] = {"type": "call_expr", "name": name, "args": p[3]}
-
-# ─────────────────────────────────────────────
-# VARIABLES
-# ─────────────────────────────────────────────
 
 # HOLLERITH literals (nH...) can appear in FORMAT statements and DATA
 # e.g.  5HHELLO  is equivalent to 'HELLO' in old Fortran
@@ -863,42 +847,23 @@ def p_primary_hollerith(p):
     """
     p[0] = {"type": "hollerith", "value": p[1]}
 
+
+#represents both a variable:
 # scalar:        X
 # array element: A(I)
 # multi-dim:     B(I, J)
-def p_variable(p):
+# and function calls:
+#   SIN(X)
+#   MAX(A, B, C)
+def p_var_or_fun_call(p):
     r"""
-    Variable : ID
-             | ID "(" NumOrIndexList ")"
-    """
-    name = p[1]
-    #try:
-        #p.parser.symbols.lookup_var(name)
-    #except SemanticError:
-        #pass  # undeclared variables caught properly at initialization time
-
-    if len(p) == 2:
-        p[0] = {"type": "variable", "name": name}
-    else:
-        p[0] = {"type": "array", "name": name, "indices": p[3]}
-
-# A(I, J)  →  NumOrIndexList = [I, J]
-def p_num_or_index_list(p):
-    r"""
-    NumOrIndexList : NumOrIndexList "," NumOrIndex
-                   | NumOrIndex
+    VarOrFunCall : ID
+                 | ID "(" OptExpressionList ")"
     """
     if len(p) == 2:
-        p[0] = [p[1]]
+        p[0] = {"node": "id", "name": p[1]}
     else:
-        p[0] = p[1] + [p[3]]
-
-# an index is just a full expression: I, I+1, N-1, etc.
-def p_num_or_index(p):
-    r"""
-    NumOrIndex : Expression
-    """
-    p[0] = p[1]
+        p[0] = {"node": "varOrFun", "name": p[1], "args": p[3]}
 
 # ─────────────────────────────────────────────
 # HELPERS
@@ -917,7 +882,7 @@ def p_empty(p):
     pass
 
 def p_error(t):
-    raise ParseError(f"Unexpected token: {t.type if t else '$'}")
+    raise ParseError(f"Unexpected token: {t.type if t else '$'} in line no. {t.lineno}")
 
 # ─────────────────────────────────────────────
 # BUILD

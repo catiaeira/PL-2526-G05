@@ -25,21 +25,23 @@ keywords = {
 
 tokens = [
     'ID', 'INT_LITERAL', 'REAL_LITERAL', 'DOUBLE_LITERAL',
-    'STRING_LITERAL', 'HOLLERITH',
+    'STRING_LITERAL', 'HOLLERITH', 'INT_LITERAL_DATA',
     'EQ', 'NE', 'LT', 'LE', 'GT', 'GE',
     'AND', 'OR', 'NOT', 'EQV', 'NEQV',
     'TRUE', 'FALSE',
     'POWER', 'CONCAT',
-    'NEWLINE', 'CONTINUATION', 'LABEL'
+    'NEWLINE', 'CONTINUATION', 'LABEL',
+    'SLASH', 'COMMON_SLASH', 'DATA_SLASH'
 ] + list(keywords.values())
 
-literals = ['(', ')', ',', ':', '+', '-', '*', '/', '=']
+literals = ['(', ')', ',', ':', '+', '-', '*', '=']
 
 states = (
-    ('stmt', 'exclusive'),
+    ('stmt', 'exclusive'), ("common", "exclusive"), ("data", "exclusive")
 )
 
-
+common_slash_counter = 0
+data_slash_counter = 0
 class FortranLexer:
     tokens = tokens
     literals = literals
@@ -204,13 +206,55 @@ class FortranLexer:
         t.lexer.lexpos += count
         return t
 
-    def t_stmt_ID(self, t):
+    def t_ANY_ID(self, t):
         r'[A-Za-z][A-Za-z0-9]*'
         upper = t.value.upper()
         t.type = keywords.get(upper, 'ID')
         t.value = upper
         return t
 
+    # COMMON - DATA specific
+    # to avoid shift/reduce conflicts
+    
+    def t_stmt_SLASH(self, t):
+        r"/"
+        return t
+
+    def t_stmt_COMMON(self, t): # enter common state
+        r"COMMON"
+        t.lexer.push_state("common")
+        return t
+
+    def t_common_COMMON_SLASH(self, t):
+        r"/"
+        t.type = "COMMON_SLASH"
+        common_slash_counter += 1
+        if common_slash_counter == 2:
+            common_slash_counter = 0
+            t.lexer.push_state("stmt")
+        return t
+
+    # ---
+
+    def t_stmt_DATA(self, t): # enter data state
+        r"DATA"
+        t.lexer.push_state("data")
+        return t
+
+    def t_data_DATA_SLASH(self, t):
+        r"/"
+        t.type = "DATA_SLASH"
+        data_slash_counter += 1
+        if data_slash_counter == 2:
+            data_slash_counter = 0
+            t.lexer.push_state("stmt")
+        return t
+
+    def t_data_INT_LITERAL_DATA(self, t):
+        r'\d+'
+        t.value = int(t.value)
+        return t
+        
     t_stmt_ignore = ' \t'
 
     def t_stmt_literal(self, t):
@@ -222,7 +266,7 @@ class FortranLexer:
         r'CONTINUE'
         return t
 
-    def t_stmt_error(self, t):
+    def t_ANY_error(self, t):
         r'.'
         self.errors.append(
             LexError(f"Illegal character '{t.value[0]}' at line {t.lineno}")
