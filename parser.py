@@ -35,11 +35,11 @@ def p_program(p):
     r"""
     Program : PROGRAM ID NEWLINE Statements END OptNewline
     """
-    p.parser.symbols.check_undefined_labels()
+    #p.parser.symbols.check_undefined_labels()
     p[0] = {"type": "program", "name": p[2], "body": p[4]}
     
     # reset local symbols/labels for the next Subroutine
-    p.parser.symbols.clear_local_scope()
+    #p.parser.symbols.clear_local_scope()
 
 # a sequence of one or more statements
 #   x = 1
@@ -126,7 +126,7 @@ def p_variable_declaration(p):
     """
     for var in p[2]:
         name = var["name"]
-        p.parser.symbols.declare_var(name, p[1])
+        #p.parser.symbols.declare_var(name, p[1])
     p[0] = {"type": "declaration", "dtype": p[1], "variables": p[2]}
 
 # I, J, K
@@ -185,7 +185,7 @@ def p_dimension_statement(p):
     """
     for var in p[2]:
         name = var["name"]
-        p.parser.symbols.declare_var(name, "dimension")
+        #p.parser.symbols.declare_var(name, "dimension")
     p[0] = {"type": "dimension", "variables": p[2]}
 
 # PARAMETER (PI = 3.14159, N = 100)
@@ -211,8 +211,8 @@ def p_param_def(p):
     r"""
     ParamDef : ID "=" Expression
     """
-    p.parser.symbols.declare_var(p[1], "parameter")
-    p.parser.symbols.initialize(p[1])
+    #p.parser.symbols.declare_var(p[1], "parameter")
+    #p.parser.symbols.initialize(p[1])
     p[0] = {"name": p[1], "value": p[3]}
 
 # COMMON /BLOCK1/ X, Y  ← named block
@@ -255,28 +255,6 @@ def p_save_statement(p):
     """
     p[0] = {"type": "save", "variables": p[2] if len(p) == 3 else []}
 
-# A-H, O-Z
-def p_letter_range_list(p):
-    r"""
-    LetterRangeList : LetterRangeList "," LetterRange
-                    | LetterRange
-    """
-    if len(p) == 2:
-        p[0] = [p[1]]
-    else:
-        p[0] = p[1] + [p[3]]
-
-# single letter:  A
-# range:          A-H
-def p_letter_range(p):
-    r"""
-    LetterRange : ID
-                | ID "-" ID
-    """
-    if len(p) == 2:
-        p[0] = p[1]
-    else:
-        p[0] = (p[1], p[3])
 
 # DATA X /1.0/, I /42/
 def p_data_statement(p):
@@ -352,16 +330,6 @@ def p_equiv_group(p):
     """
     p[0] = p[2]
 
-# SIN, COS, SQRT
-def p_id_list(p):
-    r"""
-    IDList : IDList "," ID
-           | ID
-    """
-    if len(p) == 2:
-        p[0] = [p[1]]
-    else:
-        p[0] = p[1] + [p[3]]
 
 # ─────────────────────────────────────────────
 # FUNCTION & SUBROUTINE
@@ -376,13 +344,13 @@ def p_function_declaration(p):
     """
     name = p[3]
     params = p[5]
-    p.parser.symbols.declare_fun(name, p[1], params)
-    p.parser.symbols.push()
+    #p.parser.symbols.declare_fun(name, p[1], params)
+    #p.parser.symbols.push()
     for param in params:
         pname = param["name"]
-        p.parser.symbols.declare_var(pname, "param")
-        p.parser.symbols.initialize(pname)
-    p.parser.symbols.pop()
+        #p.parser.symbols.declare_var(pname, "param")
+        #p.parser.symbols.initialize(pname)
+    #p.parser.symbols.pop()
     p[0] = {"type": "function", "name": name, "return_type": p[1],
             "params": params, "body": p[8]}
 
@@ -395,13 +363,13 @@ def p_subroutine_declaration(p):
     """
     name = p[2]
     params = p[4]
-    p.parser.symbols.declare_fun(name, "void", params)
-    p.parser.symbols.push()
+    #p.parser.symbols.declare_fun(name, "void", params)
+    #p.parser.symbols.push()
     for param in params:
         pname = param["name"]
-        p.parser.symbols.declare_var(pname, "param")
-        p.parser.symbols.initialize(pname)
-    p.parser.symbols.pop()
+        #p.parser.symbols.declare_var(pname, "param")
+        #p.parser.symbols.initialize(pname)
+    #p.parser.symbols.pop()
     p[0] = {"type": "subroutine", "name": name, "params": params, "body": p[7]}
 
 # ADD(A, B)  →  Parameters = [A, B]
@@ -503,7 +471,7 @@ def p_do_loop(p):
     DoLoop : DO INT_LITERAL ID "=" Expression "," Expression NEWLINE Statements LabeledStatement
            | DO INT_LITERAL ID "=" Expression "," Expression "," Expression NEWLINE Statements LabeledStatement
     """
-    p.parser.symbols.define_label(p[2])
+    #p.parser.symbols.define_label(p[2])
     if len(p) == 11:
         p[0] = {"type": "do", "label": p[2], "var": p[3],
                 "start": p[5], "stop": p[7], "step": None, "body": p[9], "end" : p[10]}
@@ -517,8 +485,6 @@ def p_continue_statement(p):
     ContinueStatement : CONTINUE NEWLINE
     """
     p[0] = {"type": "continue"}
-
-
 
 def p_labeled_statement(p):
     r"""
@@ -554,10 +520,10 @@ def p_label_list(p):
               | INT_LITERAL
     """
     if len(p) == 2:
-        p.parser.symbols.declare_label(p[1])
+        #p.parser.symbols.declare_label(p[1])
         p[0] = [p[1]]
     else:
-        p.parser.symbols.declare_label(p[3])
+        #p.parser.symbols.declare_label(p[3])
         p[0] = p[1] + [p[3]]
 
 # ─────────────────────────────────────────────
@@ -572,10 +538,10 @@ def p_call_statement(p):
                   | CALL ID NEWLINE
     """
     name = p[2]
-    try:
-        p.parser.symbols.lookup_fun(name)
-    except SemanticError:
-        pass  # forward references and intrinsics are allowed
+    #try:
+        #p.parser.symbols.lookup_fun(name)
+    #except SemanticError:
+        #pass  # forward references and intrinsics are allowed
     if len(p) == 7:
         p[0] = {"type": "call", "name": name, "args": p[4]}
     else:
@@ -691,12 +657,12 @@ def p_assignment(p):
                | ASSIGN INT_LITERAL TO Variable NEWLINE
     """
     if p[2] == "=":
-        var = p[1]["name"]
-        p.parser.symbols.initialize(var)
+        #var = p[1]["name"]
+        #p.parser.symbols.initialize(var)
         p[0] = {"type": "assignment", "variable": p[1], "expression": p[3]}
     else:
-        var = p[4]["name"]
-        p.parser.symbols.initialize(var)
+        #var = p[4]["name"]
+        #p.parser.symbols.initialize(var)
         p[0] = {"type": "assign", "label": p[2], "variable": p[4]}
 
 # ─────────────────────────────────────────────
@@ -878,10 +844,10 @@ def p_function_call(p):
     FunctionCall : ID "(" ArgList ")"
     """
     name = p[1]
-    try:
-        p.parser.symbols.lookup_fun(name)
-    except SemanticError:
-        pass  # intrinsic functions won't be in the symbol table
+    #try:
+        #p.parser.symbols.lookup_fun(name)
+    #except SemanticError:
+        #pass  # intrinsic functions won't be in the symbol table
     p[0] = {"type": "call_expr", "name": name, "args": p[3]}
 
 # ─────────────────────────────────────────────
@@ -906,10 +872,10 @@ def p_variable(p):
              | ID "(" NumOrIndexList ")"
     """
     name = p[1]
-    try:
-        p.parser.symbols.lookup_var(name)
-    except SemanticError:
-        pass  # undeclared variables caught properly at initialization time
+    #try:
+        #p.parser.symbols.lookup_var(name)
+    #except SemanticError:
+        #pass  # undeclared variables caught properly at initialization time
 
     if len(p) == 2:
         p[0] = {"type": "variable", "name": name}
