@@ -4,20 +4,22 @@ import re as re
 class LexError(Exception):
     pass
 
+not_implemented_keywords =  {
+    'ASSIGN': 'ASSIGN', 'BACKSPACE': 'BACKSPACE', 'BLOCKDATA': 'BLOCKDATA', 
+    'CLOSE': 'CLOSE', 'COMMON': 'COMMON', 'DATA': 'DATA', 'ENDFILE': 'ENDFILE',
+    'ENTRY': 'ENTRY', 'EXTERNAL': 'EXTERNAL', 'FORMAT': 'FORMAT',
+    'IMPLICIT': 'IMPLICIT', 'INQUIRE': 'INQUIRE', 'INTRINSIC': 'INTRINSIC', 'OPEN': 'OPEN',
+    'PAUSE': 'PAUSE', 'REWIND': 'REWIND', 'REWRITE': 'REWRITE', 'TO': 'TO', 
+}
 keywords = {
-    'ASSIGN': 'ASSIGN', 'TO': 'TO', 'BACKSPACE': 'BACKSPACE',
-    'BLOCKDATA': 'BLOCKDATA', 'CALL': 'CALL', 'CLOSE': 'CLOSE',
-    'COMMON': 'COMMON', 'CONTINUE': 'CONTINUE', 'DATA': 'DATA',
+    'CALL': 'CALL', 'CONTINUE': 'CONTINUE', 
     'DIMENSION': 'DIMENSION', 'DO': 'DO', 'ELSE': 'ELSE',
-    'ELSEIF': 'ELSEIF', 'END': 'END', 'ENDFILE': 'ENDFILE',
-    'ENDIF': 'ENDIF', 'ENTRY': 'ENTRY', 'EQUIVALENCE': 'EQUIVALENCE',
-    'EXTERNAL': 'EXTERNAL', 'FORMAT': 'FORMAT', 'FUNCTION': 'FUNCTION',
-    'GOTO': 'GOTO', 'IF': 'IF', 'IMPLICIT': 'IMPLICIT',
-    'INQUIRE': 'INQUIRE', 'INTRINSIC': 'INTRINSIC', 'OPEN': 'OPEN',
-    'PARAMETER': 'PARAMETER', 'PAUSE': 'PAUSE', 'PRINT': 'PRINT',
-    'PROGRAM': 'PROGRAM', 'READ': 'READ', 'RETURN': 'RETURN',
-    'REWIND': 'REWIND', 'REWRITE': 'REWRITE', 'SAVE': 'SAVE',
-    'STOP': 'STOP', 'SUBROUTINE': 'SUBROUTINE', 'THEN': 'THEN',
+    'ELSEIF': 'ELSEIF', 'END': 'END', 'ENDIF': 'ENDIF',
+    'EQUIVALENCE': 'EQUIVALENCE', 'FUNCTION': 'FUNCTION',
+    'GOTO': 'GOTO', 'IF': 'IF', 'PARAMETER': 'PARAMETER',
+    'PRINT': 'PRINT', 'PROGRAM': 'PROGRAM', 'READ': 'READ',
+    'RETURN': 'RETURN', 'SAVE': 'SAVE', 'STOP': 'STOP', 
+    'SUBROUTINE': 'SUBROUTINE', 'THEN': 'THEN',
     'WRITE': 'WRITE', 'INTEGER': 'INTEGER', 'REAL': 'REAL',
     'CHARACTER': 'CHARACTER', 'COMPLEX': 'COMPLEX',
     'LOGICAL': 'LOGICAL', 'DOUBLEPRECISION': 'DOUBLEPRECISION',
@@ -25,23 +27,20 @@ keywords = {
 
 tokens = [
     'ID', 'INT_LITERAL', 'REAL_LITERAL', 'DOUBLE_LITERAL',
-    'STRING_LITERAL', 'HOLLERITH', 'INT_LITERAL_DATA',
+    'STRING_LITERAL', 'HOLLERITH',
     'EQ', 'NE', 'LT', 'LE', 'GT', 'GE',
     'AND', 'OR', 'NOT', 'EQV', 'NEQV',
     'TRUE', 'FALSE',
     'POWER', 'CONCAT',
-    'NEWLINE', 'CONTINUATION', 'LABEL',
-    'SLASH', 'COMMON_SLASH', 'DATA_SLASH'
+    'NEWLINE', 'CONTINUATION', 'LABEL'
 ] + list(keywords.values())
 
-literals = ['(', ')', ',', ':', '+', '-', '*', '=']
+literals = ['(', ')', ',', ':', '+', '-', '*', '/', '=']
 
 states = (
-    ('stmt', 'exclusive'), ("common", "exclusive"), ("data", "exclusive")
+    ('stmt', 'exclusive'),
 )
 
-common_slash_counter = 0
-data_slash_counter = 0
 class FortranLexer:
     tokens = tokens
     literals = literals
@@ -206,55 +205,13 @@ class FortranLexer:
         t.lexer.lexpos += count
         return t
 
-    def t_ANY_ID(self, t):
+    def t_stmt_ID(self, t):
         r'[A-Za-z][A-Za-z0-9]*'
         upper = t.value.upper()
         t.type = keywords.get(upper, 'ID')
         t.value = upper
         return t
 
-    # COMMON - DATA specific
-    # to avoid shift/reduce conflicts
-    
-    def t_stmt_SLASH(self, t):
-        r"/"
-        return t
-
-    def t_stmt_COMMON(self, t): # enter common state
-        r"COMMON"
-        t.lexer.push_state("common")
-        return t
-
-    def t_common_COMMON_SLASH(self, t):
-        r"/"
-        t.type = "COMMON_SLASH"
-        common_slash_counter += 1
-        if common_slash_counter == 2:
-            common_slash_counter = 0
-            t.lexer.push_state("stmt")
-        return t
-
-    # ---
-
-    def t_stmt_DATA(self, t): # enter data state
-        r"DATA"
-        t.lexer.push_state("data")
-        return t
-
-    def t_data_DATA_SLASH(self, t):
-        r"/"
-        t.type = "DATA_SLASH"
-        data_slash_counter += 1
-        if data_slash_counter == 2:
-            data_slash_counter = 0
-            t.lexer.push_state("stmt")
-        return t
-
-    def t_data_INT_LITERAL_DATA(self, t):
-        r'\d+'
-        t.value = int(t.value)
-        return t
-        
     t_stmt_ignore = ' \t'
 
     def t_stmt_literal(self, t):
@@ -266,7 +223,7 @@ class FortranLexer:
         r'CONTINUE'
         return t
 
-    def t_ANY_error(self, t):
+    def t_stmt_error(self, t):
         r'.'
         self.errors.append(
             LexError(f"Illegal character '{t.value[0]}' at line {t.lineno}")

@@ -28,6 +28,7 @@ def p_codeSegment(p):
     r"""
     CodeSegment : Program
                 | SubroutineDeclaration
+                | FunctionDeclaration
     """
     p[0] = p[1]
 
@@ -76,9 +77,7 @@ def p_statement(p):
               | ContinueStatement
               | DimensionStatement
               | ParameterStatement
-              | CommonStatement
               | SaveStatement
-              | DataStatement
               | EquivalenceStatement
               | Continuation
     """
@@ -213,36 +212,6 @@ def p_param_def(p):
     #p.parser.symbols.initialize(p[1])
     p[0] = {"name": p[1], "value": p[3]}
 
-# COMMON /BLOCK1/ X, Y  <- named block
-# COMMON A, B           <- blank common
-def p_common_statement(p):
-    r"""
-    CommonStatement : COMMON CommonBlockList NEWLINE
-    """
-    p[0] = {"type": "common", "blocks": p[2]}
-
-# /BLOCK1/ X, Y  /BLOCK2/ Z
-def p_common_block_list(p):
-    r"""
-    CommonBlockList : CommonBlockList CommonBlock
-                    | CommonBlock
-    """
-    if len(p) == 2:
-        p[0] = [p[1]]
-    else:
-        p[0] = p[1] + [p[2]]
-
-# named:   /MYBLOCK/ A, B
-# blank:   A, B
-def p_common_block(p):
-    r"""
-    CommonBlock : COMMON_SLASH ID COMMON_SLASH VariableList
-                | VariableList
-    """
-    if len(p) == 5:
-        p[0] = {"block": p[2], "vars": p[4]}
-    else:
-        p[0] = {"block": None, "vars": p[1]}
 
 # SAVE X, Y    <- keep specific variables between calls
 # SAVE         <- keep all local variables
@@ -253,55 +222,6 @@ def p_save_statement(p):
     """
     p[0] = {"type": "save", "variables": p[2] if len(p) == 3 else []}
 
-
-# DATA X /1.0/, I /42/
-def p_data_statement(p):
-    r"""
-    DataStatement : DATA DataItemList NEWLINE
-    """
-    p[0] = {"type": "data", "items": p[2]}
-
-# X /1.0/  I /42/
-def p_data_item_list(p):
-    r"""
-    DataItemList : DataItemList DataItem
-                 | DataItem
-    """
-    if len(p) == 2:
-        p[0] = [p[1]]
-    else:
-        p[0] = p[1] + [p[2]]
-
-# A(1), A(2) /0.0, 1.0/
-# X /3*0.0/   <- repeat count: 3 copies of 0.0
-def p_data_item(p):
-    r"""
-    DataItem : VariableList DATA_SLASH DataValueList DATA_SLASH
-    """
-    p[0] = {"vars": p[1], "values": p[3]}
-
-# 0.0, 1.0, 2.0
-def p_data_value_list(p):
-    r"""
-    DataValueList : DataValueList "," DataValue
-                  | DataValue
-    """
-    if len(p) == 2:
-        p[0] = [p[1]]
-    else:
-        p[0] = p[1] + [p[3]]
-
-# plain value:    0.0
-# repeat:         3*0.0  (shorthand for 0.0, 0.0, 0.0)
-def p_data_value(p):
-    r"""
-    DataValue : Expression
-              | INT_LITERAL_DATA "*" Expression
-    """
-    if len(p) == 2:
-        p[0] = p[1]
-    else:
-        p[0] = {"repeat": p[1], "value": p[3]}
 
 # EQUIVALENCE (A, B), (X(1), Y)
 def p_equivalence_statement(p):
@@ -635,20 +555,14 @@ def p_io_control(p):
 # ─────────────────────────────────────────────
 
 # normal:   X = 3.14
-# ASSIGN:   ASSIGN 100 TO ILABEL  (stores label number in variable)
 def p_assignment(p):
     r"""
     Assignment : LValue "=" Expression NEWLINE
-               | ASSIGN INT_LITERAL TO LValue NEWLINE
     """
-    if p[2] == "=":
-        #var = p[1]["name"]
-        #p.parser.symbols.initialize(var)
-        p[0] = {"type": "assignment", "variable": p[1], "expression": p[3]}
-    else:
-        #var = p[4]["name"]
-        #p.parser.symbols.initialize(var)
-        p[0] = {"type": "assign", "label": p[2], "variable": p[4]}
+    #var = p[1]["name"]
+    #p.parser.symbols.initialize(var)
+    p[0] = {"type": "assignment", "variable": p[1], "expression": p[3]}
+    
 
 def p_lvalue(p):
     r"""
@@ -778,7 +692,7 @@ def p_arithmetic_add(p):
 def p_term(p):
     r"""
     Term : Term "*" PowerExpr
-         | Term SLASH PowerExpr
+         | Term "/" PowerExpr
          | PowerExpr
     """
     if len(p) == 2:
