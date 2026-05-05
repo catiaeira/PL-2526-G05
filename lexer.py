@@ -4,20 +4,22 @@ import re as re
 class LexError(Exception):
     pass
 
+not_implemented_keywords =  {
+    'ASSIGN': 'ASSIGN', 'BACKSPACE': 'BACKSPACE', 'BLOCKDATA': 'BLOCKDATA', 
+    'CLOSE': 'CLOSE', 'COMMON': 'COMMON', 'DATA': 'DATA', 'ENDFILE': 'ENDFILE',
+    'ENTRY': 'ENTRY', 'EXTERNAL': 'EXTERNAL', 'FORMAT': 'FORMAT',
+    'IMPLICIT': 'IMPLICIT', 'INQUIRE': 'INQUIRE', 'INTRINSIC': 'INTRINSIC', 'OPEN': 'OPEN',
+    'PAUSE': 'PAUSE', 'REWIND': 'REWIND', 'REWRITE': 'REWRITE', 'TO': 'TO', 
+}
 keywords = {
-    'ASSIGN': 'ASSIGN', 'TO': 'TO', 'BACKSPACE': 'BACKSPACE',
-    'BLOCKDATA': 'BLOCKDATA', 'CALL': 'CALL', 'CLOSE': 'CLOSE',
-    'COMMON': 'COMMON', 'CONTINUE': 'CONTINUE', 'DATA': 'DATA',
+    'CALL': 'CALL', 'CONTINUE': 'CONTINUE', 
     'DIMENSION': 'DIMENSION', 'DO': 'DO', 'ELSE': 'ELSE',
-    'ELSEIF': 'ELSEIF', 'END': 'END', 'ENDFILE': 'ENDFILE',
-    'ENDIF': 'ENDIF', 'ENTRY': 'ENTRY', 'EQUIVALENCE': 'EQUIVALENCE',
-    'EXTERNAL': 'EXTERNAL', 'FORMAT': 'FORMAT', 'FUNCTION': 'FUNCTION',
-    'GOTO': 'GOTO', 'IF': 'IF', 'IMPLICIT': 'IMPLICIT',
-    'INQUIRE': 'INQUIRE', 'INTRINSIC': 'INTRINSIC', 'OPEN': 'OPEN',
-    'PARAMETER': 'PARAMETER', 'PAUSE': 'PAUSE', 'PRINT': 'PRINT',
-    'PROGRAM': 'PROGRAM', 'READ': 'READ', 'RETURN': 'RETURN',
-    'REWIND': 'REWIND', 'REWRITE': 'REWRITE', 'SAVE': 'SAVE',
-    'STOP': 'STOP', 'SUBROUTINE': 'SUBROUTINE', 'THEN': 'THEN',
+    'ELSEIF': 'ELSEIF', 'END': 'END', 'ENDIF': 'ENDIF',
+    'EQUIVALENCE': 'EQUIVALENCE', 'FUNCTION': 'FUNCTION',
+    'GOTO': 'GOTO', 'IF': 'IF', 'PARAMETER': 'PARAMETER',
+    'PRINT': 'PRINT', 'PROGRAM': 'PROGRAM', 'READ': 'READ',
+    'RETURN': 'RETURN', 'SAVE': 'SAVE', 'STOP': 'STOP', 
+    'SUBROUTINE': 'SUBROUTINE', 'THEN': 'THEN',
     'WRITE': 'WRITE', 'INTEGER': 'INTEGER', 'REAL': 'REAL',
     'CHARACTER': 'CHARACTER', 'COMPLEX': 'COMPLEX',
     'LOGICAL': 'LOGICAL', 'DOUBLEPRECISION': 'DOUBLEPRECISION',
@@ -38,7 +40,6 @@ literals = ['(', ')', ',', ':', '+', '-', '*', '/', '=']
 states = (
     ('stmt', 'exclusive'),
 )
-
 
 class FortranLexer:
     tokens = tokens
