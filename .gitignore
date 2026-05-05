@@ -1,0 +1,8 @@
+# Cache folder
+/__pycache__
+
+# PLY (debug?) logs 
+*.out
+
+# Helper files
+*.txt
