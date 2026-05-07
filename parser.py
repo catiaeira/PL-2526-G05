@@ -8,10 +8,6 @@ class ParseError(Exception):
 # TOP LEVEL
 # ─────────────────────────────────────────────
 
-# PROGRAM hello
-# ...
-# (end of file)
-
 def p_code(p):
     r"""
     Code : Code CodeSegment
@@ -31,6 +27,9 @@ def p_codeSegment(p):
     """
     p[0] = p[1]
 
+# PROGRAM hello
+# ...
+# (end of file)
 def p_program(p):
     r"""
     Program : PROGRAM ID NEWLINE Statements END OptNewline
@@ -47,13 +46,23 @@ def p_program(p):
 #   z = 3
 def p_statements(p):
     r"""
-    Statements : Statements Statement
-               | Statement
+    Statements : Statements StmtWithLabel
+               | StmtWithLabel
     """
     if len(p) == 2:
         p[0] = [p[1]]
     else:
         p[0] = p[1] + [p[2]]
+
+def p_stmt_with_label(p):
+    r"""
+    StmtWithLabel : LABEL Statement
+                  | Statement
+    """
+    if len(p) == 3:
+        p[0] = {'label': p[1], 'stmt': p[2]}
+    else:
+        p[0] = {'label': None, 'stmt': p[1]}
 
 # any single executable or declarative line
 #   PRINT *, X        <- Print
@@ -63,12 +72,11 @@ def p_statement(p):
     r"""
     Statement : Assignment
               | VariableDeclaration
-              | FunctionDeclaration
               | Print
               | Write
               | Read
               | IfStatement
-              | DoLoop
+              | DoStatement
               | GotoStatement
               | CallStatement
               | ReturnStatement
@@ -78,18 +86,9 @@ def p_statement(p):
               | ParameterStatement
               | SaveStatement
               | EquivalenceStatement
-              | Continuation
     """
     p[0] = p[1]
 
-# CONTINUATION lines arrive as a token from the lexer (col 6 non-blank/non-zero)
-# they are transparently joined to the previous line, so the parser
-# never sees them as a standalone statement — we consume the token silently
-def p_continuation(p):
-    r"""
-    Continuation : CONTINUATION
-    """
-    p[0] = None
 
 # ─────────────────────────────────────────────
 # DATA TYPES
@@ -139,7 +138,7 @@ def p_variable_list(p):
 
 # plain scalar:  I
 # array:         A(10)
-# assumed-size:  A(*)  handled via DimSpec
+# assumed-size:  A(*)  not handled
 def p_variable_declarator(p):
     r"""
     VariableDeclarator : ID
@@ -219,15 +218,15 @@ def p_save_statement(p):
     SaveStatement : SAVE VariableList NEWLINE
                   | SAVE NEWLINE
     """
-    p[0] = {"type": "save", "variables": p[2] if len(p) == 3 else []}
+    p[0] = {"type": "save", "variables": p[2] if len(p) == 4 else []}
 
 
 # EQUIVALENCE (A, B), (X(1), Y)
 def p_equivalence_statement(p):
     r"""
-    EquivalenceStatement : EQUIVALENCE "(" EquivGroupList ")" NEWLINE
+    EquivalenceStatement : EQUIVALENCE EquivGroupList NEWLINE
     """
-    p[0] = {"type": "equivalence", "groups": p[3]}
+    p[0] = {"type": "equivalence", "groups": p[2]}
 
 # (A, B), (X(1), Y)
 def p_equiv_group_list(p):
@@ -385,32 +384,23 @@ def p_else_clause(p):
 # 10 CONTINUE
 def p_do_loop(p):
     r"""
-    DoLoop : DO INT_LITERAL ID "=" Expression "," Expression NEWLINE Statements LabeledStatement
-           | DO INT_LITERAL ID "=" Expression "," Expression "," Expression NEWLINE Statements LabeledStatement
+    DoStatement : DO INT_LITERAL ID "=" Expression "," Expression NEWLINE
+                | DO INT_LITERAL ID "=" Expression "," Expression "," Expression NEWLINE
     """
     #p.parser.symbols.define_label(p[2])
-    if len(p) == 11:
-        p[0] = {"type": "do", "label": p[2], "var": p[3],
-                "start": p[5], "stop": p[7], "step": None, "body": p[9], "end" : p[10]}
+    if len(p) == 9:
+        p[0] = {"type": "do_header", "target_label": p[2], "var": p[3], 
+                "start": p[5], "stop": p[7], "step": None}
     else:
-        p[0] = {"type": "do", "label": p[2], "var": p[3],
-                "start": p[5], "stop": p[7], "step": p[9], "body": p[11], "end" : p[12]}
-
+        p[0] = {"type": "do_header", "target_label": p[2], "var": p[3], 
+                "start": p[5], "stop": p[7], "step": p[9]}
+        
 # 10 CONTINUE  <- loop target label (also valid as a standalone no-op)
 def p_continue_statement(p):
     r"""
     ContinueStatement : CONTINUE NEWLINE
     """
     p[0] = {"type": "continue"}
-
-def p_labeled_statement(p):
-    r"""
-    LabeledStatement : LABEL Statement
-    """
-    if p[2] == "CONTINUE":
-        p[0] = p[2]
-    else:
-        p[0] = {"type": "statement", "body": p[2]}
 
 
 # ─────────────────────────────────────────────
@@ -424,7 +414,7 @@ def p_goto_statement(p):
     GotoStatement : GOTO INT_LITERAL NEWLINE
                   | GOTO "(" LabelList ")" "," Expression NEWLINE
     """
-    if len(p) == 3:
+    if len(p) == 4:
         p[0] = {"type": "goto", "label": p[2]}
     else:
         p[0] = {"type": "computed_goto", "labels": p[3], "index": p[6]}
@@ -690,41 +680,41 @@ def p_arithmetic_add(p):
 #   A * B / C
 def p_term(p):
     r"""
-    Term : Term "*" PowerExpr
-         | Term "/" PowerExpr
-         | PowerExpr
+    Term : Term "*" UnaryExpr
+         | Term "/" UnaryExpr
+         | UnaryExpr
     """
     if len(p) == 2:
         p[0] = p[1]
     else:
         p[0] = {"type": "binop", "op": p[2], "left": p[1], "right": p[3]}
 
-# exponentiation — right-associative: 2**3**4 = 2**(3**4)
-#   X**2
-#   2**N**M
-def p_power_expr(p):
-    r"""
-    PowerExpr : UnaryExpr POWER PowerExpr
-              | UnaryExpr
-    """
-    if len(p) == 2:
-        p[0] = p[1]
-    else:
-        p[0] = {"type": "binop", "op": "**", "left": p[1], "right": p[3]}
-
 # unary plus and minus
 #   -X
 #   +1
-def p_unary_expr(p):
+def p_unary_expr (p):
     r"""
-    UnaryExpr : "-" Primary
-              | "+" Primary
-              | Primary
+    UnaryExpr : "-" PowerExpr
+              | "+" PowerExpr
+              | PowerExpr
     """
     if len(p) == 2:
         p[0] = p[1]
     else:
         p[0] = {"type": "unop", "op": p[1], "operand": p[2]}
+
+# exponentiation — right-associative: 2**3**4 = 2**(3**4)
+#   X**2
+#   2**N**M
+def p_power_expr(p):
+    r"""
+    PowerExpr : Primary POWER Primary
+              | Primary
+    """
+    if len(p) == 2:
+        p[0] = p[1]
+    else:
+        p[0] = {"type": "binop", "op": "**", "left": p[1], "right": p[3]}
 
 # atomic values: literals, variables, function calls, parenthesised expressions
 #   42        <- INT_LITERAL
