@@ -1,6 +1,5 @@
 import ply.yacc as yacc
 from lexer import build_lexer, tokens
-from symbol_table import SemanticError, SymbolTable
 
 class ParseError(Exception):
     pass
@@ -807,11 +806,7 @@ parser = yacc.yacc(write_tables=False, debug=True)
 def parse(text):
     try:
         fortran_lexer = build_lexer()
-        parser.symbols = SymbolTable()
         result = parser.parse(text, lexer=fortran_lexer)
-        print("Program is semantically correct")
         return result
     except ParseError as e:
         print("Parsing failed:", e)
-    except SemanticError as e:
-        print("Semantic error:", e)
