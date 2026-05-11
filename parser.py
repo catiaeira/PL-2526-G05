@@ -264,7 +264,7 @@ def p_equiv_group(p):
 # END
 def p_function_declaration(p):
     r"""
-    FunctionDeclaration : DataType FUNCTION ID "(" Parameters ")" NEWLINE Statements END NEWLINE
+    FunctionDeclaration : DataType FUNCTION ID "(" Parameters ")" NEWLINE Statements END
     """
     name = p[3]
     params = p[5]
@@ -283,7 +283,7 @@ def p_function_declaration(p):
 # END
 def p_subroutine_declaration(p):
     r"""
-    SubroutineDeclaration : SUBROUTINE ID "(" Parameters ")" NEWLINE Statements END NEWLINE
+    SubroutineDeclaration : SUBROUTINE ID "(" Parameters ")" NEWLINE Statements END
     """
     name = p[2]
     params = p[4]

@@ -12,6 +12,12 @@ def dump_tokens(text):
             break
         print(f"  L{tok.lineno:3}  {tok.type:<20} {repr(tok.value)}: {tok.lexpos}")
 
+def preprocess (code): # truncates code after col 72
+    lines = code.splitlines()
+
+    truncated_lines = [line[:72] for line in lines]
+    return "\n".join(truncated_lines)
+
 def main():
     print("Options:")
     print("code | e1 | e2 | e3 | e4 | e5")
@@ -27,7 +33,7 @@ c     this is a comment
       INTEGER A, B
       READ(*,*) A
       B = A *
-     2 10
+     & 10
       IF (B .GT. 50) THEN
           PRINT *, 'HIGH'
       ELSE
@@ -37,6 +43,7 @@ c     this is a comment
           CALL LOGIT(I) !comment
    20 CONTINUE! comment
       END
+!     comment
 
       SUBROUTINE LOGIT(VAL)
       PRINT *, VAL ! comment
@@ -142,6 +149,7 @@ c     this is a comment
     source = programs[option]
 
     print("\n=== TOKENS ===")
+    source = preprocess(source)
     dump_tokens(source)
     
     print("\n=== PARSE ===")

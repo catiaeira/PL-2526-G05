@@ -60,7 +60,7 @@ class FortranLexer:
     # ---------- INITIAL (cols 1–6) ----------
 
     def t_INITIAL_comment(self, t):
-        r'^[Cc\*].*'
+        r'^[Cc\*!].*'
         pass
 
     def t_INITIAL_blank(self, t):
