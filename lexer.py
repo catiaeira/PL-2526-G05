@@ -9,7 +9,7 @@ not_implemented_keywords =  {
     'CLOSE': 'CLOSE', 'COMMON': 'COMMON', 'DATA': 'DATA', 'ENDFILE': 'ENDFILE',
     'ENTRY': 'ENTRY', 'EXTERNAL': 'EXTERNAL', 'FORMAT': 'FORMAT',
     'IMPLICIT': 'IMPLICIT', 'INQUIRE': 'INQUIRE', 'INTRINSIC': 'INTRINSIC', 'OPEN': 'OPEN',
-    'PAUSE': 'PAUSE', 'REWIND': 'REWIND', 'REWRITE': 'REWRITE', 'TO': 'TO', 
+    'PAUSE': 'PAUSE', 'REWIND': 'REWIND', 'REWRITE': 'REWRITE', 'TO': 'TO', 'HOLLERITH' : 'HOLLERITH',
 }
 keywords = {
     'CALL': 'CALL', 'CONTINUE': 'CONTINUE', 
@@ -26,13 +26,12 @@ keywords = {
 }
 
 tokens = [
-    'ID', 'INT_LITERAL', 'REAL_LITERAL', 'DOUBLE_LITERAL',
-    'STRING_LITERAL', 'HOLLERITH',
+    'ID', 'INT_LITERAL', 'REAL_LITERAL', 'DOUBLE_LITERAL', 'STRING_LITERAL',
     'EQ', 'NE', 'LT', 'LE', 'GT', 'GE',
     'AND', 'OR', 'NOT', 'EQV', 'NEQV',
     'TRUE', 'FALSE',
     'POWER', 'CONCAT',
-    'NEWLINE', 'CONTINUATION', 'LABEL'
+    'NEWLINE', 'LABEL'
 ] + list(keywords.values())
 
 literals = ['(', ')', ',', ':', '+', '-', '*', '/', '=']
@@ -49,6 +48,7 @@ class FortranLexer:
     def __init__(self):
         self.lexer = lex.lex(module=self, reflags=re.MULTILINE)
         self.errors = []
+        self.pending_newline = False
 
     def input(self, data):
         self.errors.clear()
@@ -67,35 +67,36 @@ class FortranLexer:
         r'[ ]*\n'
         t.lexer.lineno += 1
 
-    def t_INITIAL_LABEL(self, t):
-        r'^[ ]{0,4}\d{1,5}'
-        t.value = int(t.value.strip())
-        t.type = 'LABEL'
+    def t_INITIAL_start_line(self, t):
+        r'^.{6}'
+        label_field = t.value[0:5].strip()
+        continuation_char = t.value[5]
 
-        line_start = t.lexer.lexdata.rfind('\n', 0, t.lexpos) + 1
-        current_col = t.lexpos - line_start
+        if continuation_char not in (' ', '0', '\n'):
+            self.pending_newline = False    # ignore the newline from the previous line
+            t.lexer.begin('stmt')
+            return None
+
+        # if its not a continuation line we need to send the \n from the previous line
+        if self.pending_newline:
+           self.pending_newline = False
+           t.lexer.lexpos -= 6       # rewind so that we can read the labels, if any
+           t.type = 'NEWLINE'
+           t.value = '\n'
+           return t
+
+        if label_field:
+            t.type = 'LABEL'
+            t.value = int(label_field)
+            t.lexer.begin('stmt')
+            return t
         
-        # eat col 6 and start reading code
         t.lexer.begin('stmt')
-        return t
-
-    def t_INITIAL_continuation(self, t):
-        r'^[ ]{5}[^ 0\n]'
-        t.type = 'CONTINUATION'
-        t.lexer.begin('stmt')
-        return t
-
-    def t_INITIAL_to_stmt(self, t):
-        r'^[ ]{6}'
-        t.lexer.begin('stmt')
-
-    def t_INITIAL_newline(self, t):
-        r'\n'
-        t.lexer.lineno += 1
+        return None
 
     def t_INITIAL_error(self, t):
         self.errors.append(
-            LexError(f"Illegal char in columns 1–6: '{t.value[0]}' at line {t.lineno}")
+            LexError(f"Illegal char in columns 1-6: '{t.value[0]}' at line {t.lineno}")
         )
         t.lexer.skip(1)
 
@@ -104,8 +105,9 @@ class FortranLexer:
     def t_stmt_NEWLINE(self, t):
         r'\n'
         t.lexer.lineno += 1
-        t.lexer.begin('INITIAL')
-        return t
+        self.pending_newline = True
+        t.lexer.begin('INITIAL') # dont return yet, we need to check if its a continuation first
+        #return t
 
     def t_stmt_COMMENT(self, t):
         r'![^\n]*'
@@ -197,14 +199,6 @@ class FortranLexer:
         t.value = t.value[1:-1].replace("''", "'")
         return t
 
-    def t_stmt_HOLLERITH(self, t):
-        r'\d+[Hh]'
-        count = int(t.value[:-1])
-        start = t.lexer.lexpos
-        t.value = t.lexer.lexdata[start:start + count]
-        t.lexer.lexpos += count
-        return t
-
     def t_stmt_ID(self, t):
         r'[A-Za-z][A-Za-z0-9]*'
         upper = t.value.upper()
@@ -212,7 +206,9 @@ class FortranLexer:
         t.value = upper
         return t
 
-    t_stmt_ignore = ' \t'
+    def t_stmt_exclamation (self, t):
+        r'![^\n]*'
+        pass
 
     def t_stmt_literal(self, t):
         r'[(),:\+\-\*/=]'
@@ -223,6 +219,16 @@ class FortranLexer:
         r'CONTINUE'
         return t
 
+    t_stmt_ignore = ' \t'
+
+    def t_ANY_eof(self, t): # if it reaches end of file with a pending newline, send it
+        if self.pending_newline:
+            self.pending_newline = False
+            t.type = 'NEWLINE'
+            t.value = '\n'
+            return t
+        return None
+        
     def t_stmt_error(self, t):
         r'.'
         self.errors.append(
