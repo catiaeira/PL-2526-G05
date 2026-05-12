@@ -10,15 +10,16 @@ not_implemented_keywords =  {
     'ENTRY': 'ENTRY', 'EXTERNAL': 'EXTERNAL', 'FORMAT': 'FORMAT',
     'IMPLICIT': 'IMPLICIT', 'INQUIRE': 'INQUIRE', 'INTRINSIC': 'INTRINSIC', 'OPEN': 'OPEN',
     'PAUSE': 'PAUSE', 'REWIND': 'REWIND', 'REWRITE': 'REWRITE', 'TO': 'TO', 'HOLLERITH' : 'HOLLERITH',
+    'DIMENSION': 'DIMENSION'
 }
+
 keywords = {
-    'CALL': 'CALL', 'CONTINUE': 'CONTINUE', 
-    'DIMENSION': 'DIMENSION', 'DO': 'DO', 'ELSE': 'ELSE',
-    'ELSEIF': 'ELSEIF', 'END': 'END', 'ENDIF': 'ENDIF',
-    'EQUIVALENCE': 'EQUIVALENCE', 'FUNCTION': 'FUNCTION',
-    'GOTO': 'GOTO', 'IF': 'IF', 'PARAMETER': 'PARAMETER',
-    'PRINT': 'PRINT', 'PROGRAM': 'PROGRAM', 'READ': 'READ',
-    'RETURN': 'RETURN', 'SAVE': 'SAVE', 'STOP': 'STOP', 
+    'CALL': 'CALL', 'CONTINUE': 'CONTINUE', 'DO': 'DO',
+    'ELSE': 'ELSE', 'ELSEIF': 'ELSEIF', 'END': 'END',
+    'ENDIF': 'ENDIF', 'EQUIVALENCE': 'EQUIVALENCE',
+    'FUNCTION': 'FUNCTION', 'GOTO': 'GOTO', 'IF': 'IF',
+    'PARAMETER': 'PARAMETER', 'PRINT': 'PRINT', 'PROGRAM': 'PROGRAM',
+    'READ': 'READ', 'RETURN': 'RETURN', 'SAVE': 'SAVE', 'STOP': 'STOP', 
     'SUBROUTINE': 'SUBROUTINE', 'THEN': 'THEN',
     'WRITE': 'WRITE', 'INTEGER': 'INTEGER', 'REAL': 'REAL',
     'CHARACTER': 'CHARACTER', 'COMPLEX': 'COMPLEX',
@@ -60,7 +61,7 @@ class FortranLexer:
     # ---------- INITIAL (cols 1–6) ----------
 
     def t_INITIAL_comment(self, t):
-        r'^[Cc\*].*'
+        r'^[Cc\*!].*'
         pass
 
     def t_INITIAL_blank(self, t):
