@@ -82,7 +82,6 @@ def p_statement(p):
               | ReturnStatement
               | StopStatement
               | ContinueStatement
-              | DimensionStatement
               | ParameterStatement
               | SaveStatement
               | EquivalenceStatement
@@ -153,35 +152,13 @@ def p_variable_declarator(p):
 # B(5)        <- one DimSpec
 def p_dim_list(p):
     r"""
-    DimList : DimList "," DimSpec
-            | DimSpec
-    """
-    if len(p) == 2:
-        p[0] = [p[1]]
-    else:
-        p[0] = p[1] + [p[3]]
-
-# upper bound only:    10
-# explicit range:      1:10
-def p_dim_spec(p):
-    r"""
-    DimSpec : ArithmeticExpression
-            | ArithmeticExpression ":" ArithmeticExpression
+    DimList : INT_LITERAL "," INT_LITERAL
+            | INT_LITERAL
     """
     if len(p) == 2:
         p[0] = {"upper": p[1]}
     else:
         p[0] = {"lower": p[1], "upper": p[3]}
-
-# DIMENSION A(10), B(5, 5)
-def p_dimension_statement(p):
-    r"""
-    DimensionStatement : DIMENSION VariableList NEWLINE
-    """
-    for var in p[2]:
-        name = var["name"]
-        #p.parser.symbols.declare_var(name, "dimension")
-    p[0] = {"type": "dimension", "variables": p[2]}
 
 # PARAMETER (PI = 3.14159, N = 100)
 def p_parameter_statement(p):
