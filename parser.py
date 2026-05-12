@@ -12,12 +12,20 @@ def p_code(p):
     r"""
     Code : Code CodeSegment
          | CodeSegment
+         | Code NEWLINE
+         | NEWLINE
     """
     if len(p) == 3:
-        p[1].append(p[2])
-        p[0] = p[1]
+        if p[2] == "\n": 
+            p[0] = p[1]
+        else:
+            p[1].append(p[2])
+            p[0] = p[1]
     else:
-        p[0] = [p[1]]
+        if p[1] == "\n":
+            p[0] = []
+        else:
+            p[0] = [p[1]]
 
 def p_codeSegment(p):
     r"""
@@ -32,7 +40,7 @@ def p_codeSegment(p):
 # (end of file)
 def p_program(p):
     r"""
-    Program : PROGRAM ID NEWLINE Statements END OptNewline
+    Program : PROGRAM ID NEWLINE Statements END
     """
     #p.parser.symbols.check_undefined_labels()
     p[0] = {"type": "program", "name": p[2], "body": p[4]}
@@ -233,7 +241,7 @@ def p_equiv_group(p):
 # END
 def p_function_declaration(p):
     r"""
-    FunctionDeclaration : DataType FUNCTION ID "(" Parameters ")" NEWLINE Statements END NEWLINE
+    FunctionDeclaration : DataType FUNCTION ID "(" Parameters ")" NEWLINE Statements END
     """
     name = p[3]
     params = p[5]
@@ -252,7 +260,7 @@ def p_function_declaration(p):
 # END
 def p_subroutine_declaration(p):
     r"""
-    SubroutineDeclaration : SUBROUTINE ID "(" Parameters ")" NEWLINE Statements END NEWLINE
+    SubroutineDeclaration : SUBROUTINE ID "(" Parameters ")" NEWLINE Statements END
     """
     name = p[2]
     params = p[4]
@@ -718,15 +726,6 @@ def p_primary(p):
     else:
         p[0] = p[1]
 
-# HOLLERITH literals (nH...) can appear in FORMAT statements and DATA
-# e.g.  5HHELLO  is equivalent to 'HELLO' in old Fortran
-# we treat them as string primaries so they can appear in expressions
-def p_primary_hollerith(p):
-    r"""
-    Primary : HOLLERITH
-    """
-    p[0] = {"type": "hollerith", "value": p[1]}
-
 
 #represents both a variable:
 # scalar:        X
@@ -748,13 +747,6 @@ def p_var_or_fun_call(p):
 # ─────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────
-
-def p_opt_newline(p):
-    r"""
-    OptNewline : NEWLINE
-               | empty
-    """
-    pass
 
 # matches nothing — used for optional parts of rules
 def p_empty(p):
