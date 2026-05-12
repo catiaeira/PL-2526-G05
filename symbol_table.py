@@ -14,6 +14,10 @@ class SymbolTable:
         # declarations, which means they can't be nested. Then, we can
         # keep a separate dict regarding them.
 
+        # global dictionaire in which we'll keep "pre-defined functions"
+        # like MOD used in example code 3
+        self.__library = { 'MOD': { 'args': 2, 'arg_types': ['INTEGER', 'INTEGER'], 'return_type': 'INTEGER'}}
+
         # labels (for GOTO / DO)
         # stack of scopes for labels (each one is a dictionaire)
         # {"defined" = True | False, "declared" = True | False}
@@ -50,8 +54,8 @@ class SymbolTable:
     
     # ---- VARIABLES ----
 
-    # declare a new variable
-    def declare_var(self, id, vtype):
+    # declare a new variable (could be scalar or an array, depending on whether lower_bound and upper_bound are None or not)
+    def declare_var(self, id, vtype, lower_b, upper_b):
         scope = self.current_var_scope()
 
         if id in scope:
@@ -59,7 +63,9 @@ class SymbolTable:
       
         scope[id] = {
             "initialized": False,
-            "type": vtype
+            "type": vtype,
+            "lower_bound": lower_b,
+            "upper_bound": upper_b
         }
 
     # return the variable info, but only if declared
@@ -73,6 +79,8 @@ class SymbolTable:
     # mark a variable as initialized, but only if declared
     def initialize(self, id):
         iden = self.lookup_var(id) # already raises an error if the variable is undeclared
+        if iden is None:
+            return
         iden["initialized"] = True
 
     def is_initialized(self, id):
@@ -110,7 +118,10 @@ class SymbolTable:
 
     def check_fun_call(self, id, args, eval_expr):
         func = self.lookup_routine(id) # already raises an error if the function is undeclared # (1)
-
+        
+        if func is None:
+            return
+        
         expected_len = len(func["parameters"])
         given_len = len(args)
 
@@ -126,6 +137,40 @@ class SymbolTable:
     
         return func["kind"], func["return_type"] # constraint (4) should be checked by the caller
         # return (kind, return_type) so that the caller can differentiate between functions and subroutines and check the return type
+
+    # ---- LIBRARY ----
+
+    def lookup_library(self, id):
+        if id not in self.__library:
+            self.errors.append(SemanticError(f"Function not in library: {id}"))
+        return self.__library.get(id)
+
+    # library function must respect the same constraints as the custom function
+    def check_lib_call(self, id, args, eval_expr):
+        func = self.lookup_library(id)
+    
+        expected_len = func["args"]  # now an int, not a list
+        given_len = len(args)
+    
+        if expected_len is not None and expected_len != given_len:
+            self.errors.append(SemanticError(
+                f"Function '{id}': expected {expected_len} arguments, got {given_len}"
+            ))
+    
+        arg_types = func["arg_types"]  # now a flat list of type strings
+    
+        for i, arg_node in enumerate(args):
+            arg_type = eval_expr(arg_node)
+            if arg_types is not None and i < len(arg_types):
+                param_type = arg_types[i]
+                if arg_type != param_type:
+                    self.errors.append(SemanticError(
+                        f"Type mismatch in call to '{id}' (arg {i+1}): expected {param_type}, got {arg_type}"
+                    ))
+    
+        return func["return_type"] # constraint (4) should be checked by the caller
+        # return (return_type) so that the caller can check the return type
+
 
     # ---- LABELS ----
     
