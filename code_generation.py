@@ -53,6 +53,23 @@ def generate_declaration(stmt_dict):
     return []
 
 
+def generate_read(stmt_dict):
+    """
+    Generates code for a read statement.
+    Takes a dict of the form {type: 'read', controls: ???, items: list}.
+    The items list contains dicts of the form {name: string}.
+    """
+    instructions: list[str] = []
+    for item in stmt_dict["items"]:
+        var_name = item["name"]
+        index, data_type = symbol_table.lookup(var_name)
+        match data_type:
+            case "INTEGER":
+                instructions += ["READ", "ATOI", f"STOREG {index}"]
+
+    return instructions
+
+
 def generate_stmt(full_stmt_dict):
     """
     Generates code for a single statement.
@@ -66,6 +83,8 @@ def generate_stmt(full_stmt_dict):
             return generate_print(stmt_dict)
         case "declaration":
             return generate_declaration(stmt_dict)
+        case "read":
+            return generate_read(stmt_dict)
     return []
 
 
