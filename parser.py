@@ -101,7 +101,6 @@ def p_stmt(p):
          | ContinueStmt
          | ParamStmt
          | SaveStmt
-         | EquivStmt
     """
     p[0] = p[1]
 
@@ -253,7 +252,7 @@ def p_func_def(p):
     FunctionDef : Type FUNCTION ID "(" Params ")" NEWLINE Block END
     """
     p[0] = {
-        "node": "function_definition",
+        "node": "function",
         "name": p[3],
         "return_type": p[1],
         "parameters": p[5],
@@ -269,7 +268,7 @@ def p_sub_def(p):
     SubroutineDef : SUBROUTINE ID "(" Params ")" NEWLINE Block END
     """
     p[0] = {
-        "node": "subroutine_definition",
+        "node": "subroutine",
         "name": p[2],
         "parameters": p[4],
         "body": p[7]
@@ -473,13 +472,13 @@ def p_call_stmt(p):
     """
     if len(p) == 7:
         p[0] = {
-            "node": "subroutine_call",
+            "node": "call_statement",
             "name": p[2],
             "arguments": p[4]
         }
     else:
         p[0] = {
-            "node": "subroutine_call",
+            "node": "call_statement",
             "name": p[2],
             "arguments": []
         }
