@@ -70,6 +70,26 @@ def generate_read(stmt_dict):
     return instructions
 
 
+def generate_expression(expression):
+    """
+    Generates code for a single expression.
+    Takes an expression node that can be a literal or a dict of the form {type: string, op: string, left: expression, right: expression}.
+    """
+    if isinstance(expression, int):
+        return [f"PUSHI {expression}"]
+    return []
+
+def generate_assignment(stmt_dict):
+    """
+    Generates code for an assignment statement.
+    Takes a dict of the form {type: 'assignment', variable: {node: 'var', name: string}, expression: }
+    """
+    var_name = stmt_dict["variable"]["name"]
+    expression = stmt_dict["expression"]
+    index, _ = symbol_table.lookup(var_name)
+    return generate_expression(expression) + [f"STOREG {index}"]
+
+
 def generate_stmt(full_stmt_dict):
     """
     Generates code for a single statement.
@@ -85,6 +105,8 @@ def generate_stmt(full_stmt_dict):
             return generate_declaration(stmt_dict)
         case "read":
             return generate_read(stmt_dict)
+        case "assignment":
+            return generate_assignment(stmt_dict)
     return []
 
 
