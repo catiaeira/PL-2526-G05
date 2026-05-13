@@ -136,6 +136,18 @@ class SemanticAnalyzer:
         return "UNKNOWN"
 
     def visit_function_call(self, node):
+        # Parser can't distinguish NUMS(I) (array) from SIN(X) (function).
+        # Check the symbol table first — if it's a known array, handle it here.
+        var = self.symbols.lookup_var(node["name"])
+        if var and var.get("is_array"):
+            if not var["initialized"]:
+                self.errors.append(SemanticError(f"Array '{node['name']}' used before initialization"))
+            for arg in node.get("arguments", []):
+                if self.visit(arg) != "INTEGER":
+                    self.errors.append(SemanticError(f"Array index for '{node['name']}' must be INTEGER"))
+            return var["type"]
+    
+        # Otherwise, treat as a genuine function/subroutine call.
         arg_types = [self.visit(arg) for arg in node.get("arguments", [])]
         res = self._try_catch(self.symbols.check_call, node["name"], arg_types)
         if res:

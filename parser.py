@@ -544,8 +544,8 @@ def p_write_stmt(p):
 # no items:     READ (5, END=99)
 def p_read_stmt(p):
     r"""
-    ReadStmt : READ "*" "," VarList NEWLINE
-             | READ "(" IOControls ")" VarList NEWLINE
+    ReadStmt : READ "*" "," ExprList NEWLINE
+             | READ "(" IOControls ")" ExprList NEWLINE
              | READ "(" IOControls ")" NEWLINE
     """
     if p[2] == "*":
