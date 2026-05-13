@@ -43,31 +43,31 @@ class SemanticAnalyzer:
                 elif node_type == "program":
                     self._try_catch(self.symbols.declare_routine, node.get("name"), node_type)
 
-            print("\n!! POST 1ST PASS !!") #debug
-            self.symbols.dump() #debug
+            #print("\n!! POST 1ST PASS !!") #debug
+            #self.symbols.dump() #debug
 
             # PASS 2: visit functions/subroutines first to update their signatures
             for node in nodes:
                 if node.get("node") in ("function", "subroutine"):
                     self.visit(node)
             
-            print("\n!! POST 2ND PASS !!") #debug
-            self.symbols.dump() #debug
+            #print("\n!! POST 2ND PASS !!") #debug
+            #self.symbols.dump() #debug
 
             # PASS 3: program analysis
             for node in nodes:
                 if node.get("node") == "program":
                     self.visit(node)
 
-            print("\n!! FINAL !!") #debug
-            self.symbols.dump() #debug
+            #print("\n!! FINAL !!") #debug
+            #self.symbols.dump() #debug
 
             if self.errors:
                 print("\nSemantic Errors Found:")
                 for err in self.errors: print(f" - {err}")
                 return 0
 
-            print("\nAnalysis complete: Program is semantically valid")
+            print("Analysis complete: Program is semantically valid\n")
             return 1
 
     # ---- DISPATCHER ----

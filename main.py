@@ -156,12 +156,14 @@ c     this is a comment
     ast = fortran_parser.parse(source)
     print(ast)
     
+    print("\n=== SEMANTIC ANALYSIS ===")
     analyzer = SemanticAnalyzer()
-    analyzer.analyze(ast)
-    if not analyzer.errors + analyzer.symbols.errors:
-        print("Program is semantically correct")
-    else: print("\nErrors: ", analyzer.errors + analyzer.symbols.errors, "\n")
+    valid = analyzer.analyze(ast)
 
+    if not valid:
+        return
+    
+    ## else carry on to machine code generation
 
 if __name__ == '__main__':
     main()
