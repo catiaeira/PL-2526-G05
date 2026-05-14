@@ -12,7 +12,6 @@ def generate_print(stmt_dict):
     format = stmt_dict["format"]
     items = stmt_dict["items"]
 
-    print(f"format={format}")
     instructions: list[str] = []
     for item in items:
         if isinstance(item, str):
@@ -41,6 +40,18 @@ def generate_declaration_integer(variables):
     return instructions
 
 
+def generate_declaration_logical(variables):
+    """
+    Generates code for a logical variable declaration.
+    Takes a list of dicts of the form {name: string}
+    """
+    instructions: list[str] = []
+    for var_dict in variables:
+        index = symbol_table.insert(var_dict["name"], "LOGICAL")
+        instructions += ["PUSHI 0", f"STOREG {index}"]
+    return instructions
+
+
 def generate_declaration(stmt_dict):
     """
     Generates code for a variable declaration statement.
@@ -50,7 +61,9 @@ def generate_declaration(stmt_dict):
     match data_type:
         case "INTEGER":
             return generate_declaration_integer(stmt_dict["variables"])
-    return []
+        case "LOGICAL":
+            return generate_declaration_logical(stmt_dict["variables"])
+    return ["// added no instructions"]
 
 
 def generate_read(stmt_dict):
@@ -75,7 +88,11 @@ def generate_expression(expression):
     Generates code for a single expression. Enters recursion of the expression is nested.
     Takes an expression node that can be a literal or a dict of the form {type: string, op: string, left: expression, right: expression}.
     """
-    if isinstance(expression, int):
+    # checks for bools first because bool is a subclass of int
+    if isinstance(expression, bool):
+        int_val = 1 if expression else 0
+        return [f"PUSHI {int_val}"]
+    elif isinstance(expression, int):
         return [f"PUSHI {expression}"]
     elif isinstance(expression, dict):
         if expression.get("node") == "id":
@@ -96,7 +113,7 @@ def generate_expression(expression):
                     instructions += ["MUL"]
             return instructions
 
-    return []
+    return ["// added no instructions"]
 
 def generate_assignment(stmt_dict):
     """
@@ -114,7 +131,6 @@ def generate_stmt(full_stmt_dict):
     Generates code for a single statement.
     Takes a dict of the form {label: int, stmt: dict}
     """
-    print(f"label={full_stmt_dict['label']}")
     stmt_dict = full_stmt_dict["stmt"]
     stmt_type = stmt_dict["type"]
     match stmt_type:
@@ -126,7 +142,7 @@ def generate_stmt(full_stmt_dict):
             return generate_read(stmt_dict)
         case "assignment":
             return generate_assignment(stmt_dict)
-    return []
+    return ["// added no instructions"]
 
 
 def generate_do(do_stmt, body_stmts, start_index) -> tuple[list[str], int]:
