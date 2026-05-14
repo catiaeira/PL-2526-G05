@@ -148,24 +148,36 @@ def generate_assignment(stmt_dict):
     return generate_expression(expression) + [f"STOREG {index}"]
 
 
+def generate_goto(stmt_dict):
+    """
+    Generates code for a GOTO statement.
+    Takes a dict of the form {node: 'goto_statement', label: int}.
+    """
+    label = stmt_dict["label"]
+    return [f"JUMP {label}"]
+
+
 def generate_stmt(label, stmt_dict):
     """
     Generates code for a single statement.
     Takes a label (can be None) and a dict of the form {node: string, ...} (the rest of the keys depend on the node type)
     """
     node = stmt_dict["node"]
+    label_instruction = [f"{label}:"] if label else []
+    stmt_instructions = []
     match node:
         case "print_statement":
-            return generate_print(stmt_dict)
+            stmt_instructions = generate_print(stmt_dict)
         case "variable_declaration":
-            return generate_declaration(stmt_dict)
+            stmt_instructions = generate_declaration(stmt_dict)
         case "read_statement":
-            return generate_read(stmt_dict)
+            stmt_instructions = generate_read(stmt_dict)
         case "assignment":
-            return generate_assignment(stmt_dict)
+            stmt_instructions = generate_assignment(stmt_dict)
+        case "goto_statement":
+            stmt_instructions = generate_goto(stmt_dict)
 
-    print("WARNING: Added no instructions in generate_stmt")
-    return ["// added no instructions"]
+    return label_instruction + stmt_instructions
 
 
 def generate_do(do_stmt, body_stmts, start_index) -> tuple[list[str], int]:
