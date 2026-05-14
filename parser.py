@@ -833,7 +833,12 @@ def p_atom(p):
     else:
         value = p[1]
 
-        if isinstance(value, int):
+        if isinstance(value, bool):
+            p[0] = {
+                "node": "logical_literal",
+                "value": value
+            }
+        elif isinstance(value, int):
             p[0] = {
                 "node": "integer_literal",
                 "value": value
@@ -843,20 +848,10 @@ def p_atom(p):
                 "node": "real_literal",
                 "value": value
             }
-        elif isinstance(value, str) and value not in [".TRUE.", ".FALSE."]:
+        elif isinstance(value, str):
             p[0] = {
                 "node": "string_literal",
                 "value": value
-            }
-        elif value == ".TRUE.":
-            p[0] = {
-                "node": "logical_literal",
-                "value": True
-            }
-        elif value == ".FALSE.":
-            p[0] = {
-                "node": "logical_literal",
-                "value": False
             }
         else:
             p[0] = value
