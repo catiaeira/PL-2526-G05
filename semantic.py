@@ -70,7 +70,7 @@ class SemanticAnalyzer:
             print("Analysis complete: Program is semantically valid\n")
             return 1
 
-    # ---- DISPATCHER ----
+    # ---- VISITOR ----
 
     def visit(self, node):
         if node is None: return
@@ -94,10 +94,17 @@ class SemanticAnalyzer:
 
     # ---- LITERALS & REFERENCES ----
 
-    def visit_integer_literal(self, node): return "INTEGER"
-    def visit_real_literal(self, node):    return "REAL"
-    def visit_string_literal(self, node):  return "CHARACTER"
-    def visit_logical_literal(self, node): return "LOGICAL"
+    def visit_integer_literal(self, node):
+        return "INTEGER"
+    
+    def visit_real_literal(self, node):
+        return "REAL"
+    
+    def visit_string_literal(self, node):
+        return "CHARACTER"
+    
+    def visit_logical_literal(self, node):
+        return "LOGICAL"
 
     def visit_variable_reference(self, node):
         var = self._try_catch(self.symbols.lookup_var, node["name"])
@@ -136,8 +143,8 @@ class SemanticAnalyzer:
         return "UNKNOWN"
 
     def visit_function_call(self, node):
-        # Parser can't distinguish NUMS(I) (array) from SIN(X) (function).
-        # Check the symbol table first — if it's a known array, handle it here.
+        # the parser can't distinguish NUMS(I) (array) from SIN(X) (function).
+        # so we check the symbol table first, and, if it's a known array, handle it
         var = self.symbols.lookup_var(node["name"])
         if var and var.get("is_array"):
             if not var["initialized"]:
@@ -147,7 +154,7 @@ class SemanticAnalyzer:
                     self.errors.append(SemanticError(f"Array index for '{node['name']}' must be INTEGER"))
             return var["type"]
     
-        # Otherwise, treat as a genuine function/subroutine call.
+        # else, treat it as a genuine function call.
         arg_types = [self.visit(arg) for arg in node.get("arguments", [])]
         res = self._try_catch(self.symbols.check_call, node["name"], arg_types)
         if res:
@@ -179,8 +186,14 @@ class SemanticAnalyzer:
             self.symbols.declare_var(p["name"], "UNKNOWN") 
             self.symbols.initialize(p["name"])
 
-        # visit the body (updates from UNKNOWN to REAL/INTEGER)
+        # visit the body (updates from UNKNOWN to REAL/INTEGER if they're declared as variables in the body)
         self.visit(node["body"])
+
+        # the rest is resolved by implicit typing
+        for p in node.get("parameters", []):
+            var_info = self.symbols.lookup_var(p["name"])
+            if var_info and var_info["type"] == "UNKNOWN":
+                var_info["type"] = self.symbols._get_implicit_type(p["name"])
 
         # update the GLOBAL routine signature
         actual_params = []
@@ -227,7 +240,6 @@ class SemanticAnalyzer:
         self.visit(node["body"])
 
     def visit_do_loop(self, node):
-        self._try_catch(self.symbols.lookup_var, node["loop_variable"])
         self._try_catch(self.symbols.initialize, node["loop_variable"])
         self.visit([node["start"], node["end"], node.get("step")])
         self._try_catch(self.symbols.declare_label, node["label"])
@@ -245,15 +257,31 @@ class SemanticAnalyzer:
         for item in node["items"]:
             if item.get("name"): self._try_catch(self.symbols.initialize, item["name"])
 
-    def visit_print_statement(self, node): self.visit(node["items"])
-    def visit_write_statement(self, node): self.visit(node["items"])
+    def visit_print_statement(self, node):
+        self.visit(node["items"])
+
+    def visit_write_statement(self, node):
+        self.visit(node["items"])
+
     def visit_parameter_statement(self, node):
         for param in node["parameters"]:
-            self._try_catch(self.symbols.declare_var, param["name"], self.visit(param["value"]) or "INTEGER")
+            self._try_catch(self.symbols.declare_var, param["name"], self.visit(param["value"]))
             self._try_catch(self.symbols.initialize, param["name"])
 
-    # No-op Statements
-    def visit_continue_statement(self, node): pass
-    def visit_return_statement(self, node):   self.visit(node.get("value"))
-    def visit_stop_statement(self, node):     pass
-    def visit_save_statement(self, node):     pass
+    def visit_continue_statement(self, node):
+        pass
+
+    def visit_return_statement(self, node):
+        value = node.get("value")
+        if value is not None:
+            t = self.visit(value)
+            if t != "INTEGER":
+                self.errors.append(SemanticError("Return code must be INTEGER"))
+    
+    def visit_stop_statement(self, node):
+        pass
+    
+    def visit_save_statement(self, node):
+        for var in node.get("variables", []):
+            if not self.symbols.lookup_var(var["name"]):
+                self.errors.append(SemanticError(f"SAVE references undeclared variable '{var['name']}'"))

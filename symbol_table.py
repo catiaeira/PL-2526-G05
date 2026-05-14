@@ -16,7 +16,15 @@ class SymbolTable:
 
         # global dictionaire in which we'll keep "pre-defined functions"
         # like MOD used in example code 3
-        self.__library = { 'MOD': { 'args': 2, 'arg_types': ['INTEGER', 'INTEGER'], 'return_type': 'INTEGER'}}
+        self.__library = {
+            'MOD':   {'args': 2, 'arg_types': ['INTEGER', 'INTEGER'], 'return_type': 'INTEGER'},
+            'ABS':   {'args': 1, 'arg_types': ['REAL'],    'return_type': 'REAL'},
+            'SIN':   {'args': 1, 'arg_types': ['REAL'], 'return_type': 'REAL'},
+            'COS':   {'args': 1, 'arg_types': ['REAL'], 'return_type': 'REAL'},
+            'TAN':   {'args': 1, 'arg_types': ['REAL'], 'return_type': 'REAL'},
+            'SQRT':  {'args': 1, 'arg_types': ['REAL'], 'return_type': 'REAL'},
+            'LOG':   {'args': 1, 'arg_types': ['REAL'], 'return_type': 'REAL'},
+        }
 
         # labels (for GOTO / DO)
         # stack of scopes for labels (each one is a dictionaire)
@@ -50,6 +58,19 @@ class SymbolTable:
     def current_label_scope(self):
         return self.__label_scopes[-1]
     
+    # ---- HELPERS ----
+    
+    def _get_implicit_type(self, name):
+        return "INTEGER" if name[0].upper() in "IJKLMN" else "REAL"
+
+    # type upgrader -> INTEGER can be used as REAL
+    def _types_compatible(self, given, expected):
+        if given == expected:
+            return True
+        if given in ("INTEGER", "REAL") and expected in ("INTEGER", "REAL"):
+            return True
+        return False
+
     # ---- VARIABLES ----
 
     # declare a new variable (could be scalar or an array)
@@ -73,15 +94,7 @@ class SymbolTable:
             "fst_dim": fst_d,
             "snd_dim": snd_d
         }
-
-    def _get_implicit_type(self, name):
-        return "INTEGER" if name[0].upper() in "IJKLMN" else "REAL"
-
-    def _handle_implicit_declaration(self, id):
-        dtype = self._get_implicit_type(id)
-        self.declare_var(id, dtype)
-        return self.current_var_scope()[id]
-
+    
     # return the variable info, but only if declared
     def lookup_var(self, id):
         # search all the scopes, starting with the most recent one
@@ -90,11 +103,13 @@ class SymbolTable:
                 return scope.get(id)
         return None # return None instead of raising Undeclared Variable to allow the caller to decide if it should be declared implicitly or not
 
-    # mark a variable as initialized, but only if declared
+    # mark a variable as initialized, implicitly declare it if not existent
     def initialize(self, id):
         var = self.lookup_var(id)
-        if var:
-            var["initialized"] = True
+        if not var:
+            self.declare_var(id)  # implicit typing
+            var = self.lookup_var(id)
+        var["initialized"] = True
 
     # ---- FUNCTIONS / SUBROUTINES ----
 
@@ -110,7 +125,6 @@ class SymbolTable:
         }
 
     def update_routine_signature(self, id, actual_params):
-        """Updates the parameter types for a registered routine."""
         if id in self.__functions:
             self.__functions[id]["parameters"] = actual_params
         else:
@@ -138,8 +152,8 @@ class SymbolTable:
         # Check argument types
         for i, (given, param) in enumerate(zip(argument_types, func['parameters'])):
             expected = param['type']
-            if given != expected:
-                raise SemanticError(f"Routine {id} arg {i+1} ({param['name']}): expected {expected}, got {given}") # (3)
+            if not self._types_compatible(given, expected):
+                raise SemanticError(f"Routine {id} arg {i+1} ({param['name']}): expected {expected}, got {given}")
         
         return func['kind'], func['return_type']
         # constraint (4) should be checked by the caller
@@ -159,8 +173,8 @@ class SymbolTable:
             raise SemanticError(f"Library function {id} expects {func['args']} args, got {len(argument_types)}") # (2)
         
         for i, (given, expected) in enumerate(zip(argument_types, func['arg_types'])):
-            if given != expected:
-                raise SemanticError(f"Library function {id} arg {i+1}: expected {expected}, got {given}") # (3)
+            if not self._types_compatible(given, expected):
+                raise SemanticError(f"Library function {id} arg {i+1}: expected {expected}, got {given}")
         
         return "function", func['return_type']
         # constraint (4) should be checked by the caller
@@ -185,8 +199,6 @@ class SymbolTable:
     # 30 CONTINUE                   # defined label 30
 
     # Labels may de declared multiple times, as long as they're defined once and only once.
-
-    # !!NOTE!! there may be DO or GOTO constraints regarding labels not yet considered
 
     def declare_label(self, label):
         scope = self.current_label_scope()
