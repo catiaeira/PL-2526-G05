@@ -133,6 +133,24 @@ def generate_expression(expression):
                     instructions += ["DIV"]
                 case "*":
                     instructions += ["MUL"]
+                case ".AND.":
+                    instructions += ["AND"]
+                case ".OR.":
+                    instructions += ["OR"]
+                case ".NOT.":
+                    instructions += ["NOT"]
+                case ".EQ.":
+                    instructions += ["EQUAL"]
+                case ".NE.":
+                    instructions += ["EQUAL", "NOT"]
+                case ".LT.":
+                    instructions += ["INF"]
+                case ".LE.":
+                    instructions += ["INFEQ"]
+                case ".GT.":
+                    instructions += ["SUP"]
+                case ".GE.":
+                    instructions += ["SUPEQ"]
             return instructions
 
     print("WARNING: Added no instructions in generate_expression")
