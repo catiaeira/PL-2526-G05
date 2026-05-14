@@ -8,15 +8,15 @@ class ParseError(Exception):
 # TOP LEVEL
 # ─────────────────────────────────────────────
 
-def p_code(p):
+def p_file(p):
     r"""
-    Code : Code CodeSegment
-         | CodeSegment
-         | Code NEWLINE
+    File : File TopLevel
+         | TopLevel
+         | File NEWLINE
          | NEWLINE
     """
     if len(p) == 3:
-        if p[2] == "\n": 
+        if p[2] == "\n":
             p[0] = p[1]
         else:
             p[1].append(p[2])
@@ -27,72 +27,80 @@ def p_code(p):
         else:
             p[0] = [p[1]]
 
-def p_codeSegment(p):
+def p_top_level(p):
     r"""
-    CodeSegment : Program
-                | SubroutineDeclaration
-                | FunctionDeclaration
+    TopLevel : MainProgram
+             | SubroutineDef
+             | FunctionDef
     """
     p[0] = p[1]
 
 # PROGRAM hello
 # ...
 # (end of file)
-def p_program(p):
+def p_main_program(p):
     r"""
-    Program : PROGRAM ID NEWLINE Statements END
+    MainProgram : PROGRAM ID NEWLINE Block END
     """
-    #p.parser.symbols.check_undefined_labels()
-    p[0] = {"type": "program", "name": p[2], "body": p[4]}
-    
-    # reset local symbols/labels for the next Subroutine
-    #p.parser.symbols.clear_local_scope()
+    p[0] = {
+        "node": "program",
+        "name": p[2],
+        "body": p[4]
+    }
 
 # a sequence of one or more statements
 #   x = 1
 #   y = 2
 #   z = 3
-def p_statements(p):
+def p_block(p):
     r"""
-    Statements : Statements StmtWithLabel
-               | StmtWithLabel
+    Block : Block Line
+          | Line
     """
     if len(p) == 2:
         p[0] = [p[1]]
     else:
         p[0] = p[1] + [p[2]]
 
-def p_stmt_with_label(p):
+# labeled statement:
+#   10 CONTINUE
+# unlabeled statement:
+#   PRINT *, X
+def p_line(p):
     r"""
-    StmtWithLabel : LABEL Statement
-                  | Statement
+    Line : LABEL Stmt
+         | Stmt
     """
     if len(p) == 3:
-        p[0] = {'label': p[1], 'stmt': p[2]}
+        p[0] = {
+            "node": "labeled_statement",
+            "label": p[1],
+            "statement": p[2]
+        }
     else:
-        p[0] = {'label': None, 'stmt': p[1]}
+        p[0] = p[1]
+
 
 # any single executable or declarative line
-#   PRINT *, X        <- Print
-#   INTEGER I         <- VariableDeclaration
-#   IF (X .GT. 0) ... <- IfStatement
-def p_statement(p):
+#   PRINT *, X        <- PrintStmt
+#   INTEGER I         <- TypeDecl
+#   IF (X .GT. 0) ... <- IfStmt
+def p_stmt(p):
     r"""
-    Statement : Assignment
-              | VariableDeclaration
-              | Print
-              | Write
-              | Read
-              | IfStatement
-              | DoStatement
-              | GotoStatement
-              | CallStatement
-              | ReturnStatement
-              | StopStatement
-              | ContinueStatement
-              | ParameterStatement
-              | SaveStatement
-              | EquivalenceStatement
+    Stmt : AssignStmt
+         | TypeDecl
+         | PrintStmt
+         | WriteStmt
+         | ReadStmt
+         | IfStmt
+         | DoStmt
+         | GotoStmt
+         | CallStmt
+         | ReturnStmt
+         | StopStmt
+         | ContinueStmt
+         | ParamStmt
+         | SaveStmt
     """
     p[0] = p[1]
 
@@ -105,14 +113,14 @@ def p_statement(p):
 # REAL X
 # DOUBLE PRECISION D
 # (empty means no type prefix, treated as void)
-def p_data_type(p):
+def p_type(p):
     r"""
-    DataType : INTEGER
-             | REAL
-             | CHARACTER
-             | DOUBLEPRECISION
-             | LOGICAL
-             | COMPLEX
+    Type : INTEGER
+         | REAL
+         | CHARACTER
+         | DOUBLEPRECISION
+         | LOGICAL
+         | COMPLEX
     """
     p[0] = "void" if p[1] is None else p[1]
 
@@ -122,21 +130,23 @@ def p_data_type(p):
 
 # INTEGER I, J, K
 # REAL X(10), Y
-def p_variable_declaration(p):
+def p_type_decl(p):
     r"""
-    VariableDeclaration : DataType VariableList NEWLINE
+    TypeDecl : Type VarList NEWLINE
     """
-    for var in p[2]:
-        name = var["name"]
-        #p.parser.symbols.declare_var(name, p[1])
-    p[0] = {"type": "declaration", "dtype": p[1], "variables": p[2]}
+    p[0] = {
+        "node": "variable_declaration",
+        "data_type": p[1],
+        "variables": p[2]
+    }
+
 
 # I, J, K
 # X(10), Y, Z(5)
-def p_variable_list(p):
+def p_var_list(p):
     r"""
-    VariableList : VariableList "," VariableDeclarator
-                 | VariableDeclarator
+    VarList : VarList "," VarDecl
+            | VarDecl
     """
     if len(p) == 2:
         p[0] = [p[1]]
@@ -146,40 +156,61 @@ def p_variable_list(p):
 # plain scalar:  I
 # array:         A(10)
 # assumed-size:  A(*)  not handled
-def p_variable_declarator(p):
+def p_var_decl(p):
     r"""
-    VariableDeclarator : ID
-                       | ID "(" DimList ")"
+    VarDecl : ID
+            | ID "(" Dims ")"
     """
     if len(p) == 2:
-        p[0] = {"name": p[1]}
+        p[0] = {
+            "node": "variable",
+            "name": p[1]
+        }
     else:
-        p[0] = {"name": p[1], "dims": p[3]}
+        p[0] = {
+            "node": "variable",
+            "name": p[1],
+            "dimensions": p[3]
+        }
 
-# A(10, 20)   <- two DimSpecs
-# B(5)        <- one DimSpec
-def p_dim_list(p):
+
+# A(10, 20)   <- two dimension bounds
+# B(5)        <- one dimension bound
+def p_dims(p):
     r"""
-    DimList : INT_LITERAL "," INT_LITERAL
-            | INT_LITERAL
+    Dims : INT_LITERAL "," INT_LITERAL
+         | INT_LITERAL
     """
     if len(p) == 2:
-        p[0] = {"upper": p[1]}
+        p[0] = {
+            "node": "dimension",
+            "first_dim": p[1],
+            "second_dim": None
+        }
     else:
-        p[0] = {"lower": p[1], "upper": p[3]}
+        p[0] = {
+            "node": "dimension",
+            "first_dim": p[1],
+            "second_dim": p[3]
+        }
+
 
 # PARAMETER (PI = 3.14159, N = 100)
-def p_parameter_statement(p):
+def p_param_stmt(p):
     r"""
-    ParameterStatement : PARAMETER "(" ParamList ")" NEWLINE
+    ParamStmt : PARAMETER "(" ParamItems ")" NEWLINE
     """
-    p[0] = {"type": "parameter", "params": p[3]}
+    p[0] = {
+        "node": "parameter_statement",
+        "parameters": p[3]
+    }
+
 
 # PI = 3.14159, N = 100
-def p_param_list(p):
+def p_param_items(p):
     r"""
-    ParamList : ParamList "," ParamDef
-              | ParamDef
+    ParamItems : ParamItems "," ParamItem
+               | ParamItem
     """
     if len(p) == 2:
         p[0] = [p[1]]
@@ -187,50 +218,27 @@ def p_param_list(p):
         p[0] = p[1] + [p[3]]
 
 # PI = 3.14159
-def p_param_def(p):
+def p_param_item(p):
     r"""
-    ParamDef : ID "=" Expression
+    ParamItem : ID "=" Expr
     """
-    #p.parser.symbols.declare_var(p[1], "parameter")
-    #p.parser.symbols.initialize(p[1])
-    p[0] = {"name": p[1], "value": p[3]}
-
+    p[0] = {
+        "node": "named_constant",
+        "name": p[1],
+        "value": p[3]
+    }
 
 # SAVE X, Y    <- keep specific variables between calls
 # SAVE         <- keep all local variables
-def p_save_statement(p):
+def p_save_stmt(p):
     r"""
-    SaveStatement : SAVE VariableList NEWLINE
-                  | SAVE NEWLINE
+    SaveStmt : SAVE VarList NEWLINE
+             | SAVE NEWLINE
     """
-    p[0] = {"type": "save", "variables": p[2] if len(p) == 4 else []}
-
-
-# EQUIVALENCE (A, B), (X(1), Y)
-def p_equivalence_statement(p):
-    r"""
-    EquivalenceStatement : EQUIVALENCE EquivGroupList NEWLINE
-    """
-    p[0] = {"type": "equivalence", "groups": p[2]}
-
-# (A, B), (X(1), Y)
-def p_equiv_group_list(p):
-    r"""
-    EquivGroupList : EquivGroupList "," EquivGroup
-                   | EquivGroup
-    """
-    if len(p) == 2:
-        p[0] = [p[1]]
-    else:
-        p[0] = p[1] + [p[3]]
-
-# (A, B)  <- A and B share the same memory location
-def p_equiv_group(p):
-    r"""
-    EquivGroup : "(" VariableList ")"
-    """
-    p[0] = p[2]
-
+    p[0] = {
+        "node": "save_statement",
+        "variables": p[2] if len(p) == 4 else []
+    }
 
 # ─────────────────────────────────────────────
 # FUNCTION & SUBROUTINE
@@ -239,47 +247,40 @@ def p_equiv_group(p):
 # REAL FUNCTION ADD(A, B)
 #   ADD = A + B
 # END
-def p_function_declaration(p):
+def p_func_def(p):
     r"""
-    FunctionDeclaration : DataType FUNCTION ID "(" Parameters ")" NEWLINE Statements END
+    FunctionDef : Type FUNCTION ID "(" Params ")" NEWLINE Block END
     """
-    name = p[3]
-    params = p[5]
-    #p.parser.symbols.declare_fun(name, p[1], params)
-    #p.parser.symbols.push()
-    for param in params:
-        pname = param["name"]
-        #p.parser.symbols.declare_var(pname, "param")
-        #p.parser.symbols.initialize(pname)
-    #p.parser.symbols.pop()
-    p[0] = {"type": "function", "name": name, "return_type": p[1],
-            "params": params, "body": p[8]}
+    p[0] = {
+        "node": "function",
+        "name": p[3],
+        "return_type": p[1],
+        "parameters": p[5],
+        "body": p[8]
+    }
+
 
 # SUBROUTINE SWAP(A, B)
 #   ...
 # END
-def p_subroutine_declaration(p):
+def p_sub_def(p):
     r"""
-    SubroutineDeclaration : SUBROUTINE ID "(" Parameters ")" NEWLINE Statements END
+    SubroutineDef : SUBROUTINE ID "(" Params ")" NEWLINE Block END
     """
-    name = p[2]
-    params = p[4]
-    #p.parser.symbols.declare_fun(name, "void", params)
-    #p.parser.symbols.push()
-    for param in params:
-        pname = param["name"]
-        #p.parser.symbols.declare_var(pname, "param")
-        #p.parser.symbols.initialize(pname)
-    #p.parser.symbols.pop()
-    p[0] = {"type": "subroutine", "name": name, "params": params, "body": p[7]}
+    p[0] = {
+        "node": "subroutine",
+        "name": p[2],
+        "parameters": p[4],
+        "body": p[7]
+    }
 
-# ADD(A, B)  ->  Parameters = [A, B]
-# NONE       ->  Parameters = []
-def p_parameters(p):
+# ADD(A, B)  ->  Params = [A, B]
+# NONE       ->  Params = []
+def p_params(p):
     r"""
-    Parameters : Parameters "," Parameter
-               | Parameter
-               | empty
+    Params : Params "," Param
+           | Param
+           | empty
     """
     if len(p) == 2:
         p[0] = [] if p[1] is None else [p[1]]
@@ -287,11 +288,14 @@ def p_parameters(p):
         p[0] = p[1] + [p[3]]
 
 # a single parameter name: A
-def p_parameter(p):
+def p_param(p):
     r"""
-    Parameter : ID
+    Param : ID
     """
-    p[0] = {"name": p[1]}
+    p[0] = {
+        "node": "parameter",
+        "name": p[1]
+    }
 
 # ─────────────────────────────────────────────
 # CONTROL FLOW — IF
@@ -308,35 +312,50 @@ def p_parameter(p):
 #
 # one-liner:
 #   IF (X .GT. 0) PRINT *, X
-def p_if_statement(p):
+def p_if_stmt(p):
     r"""
-    IfStatement : IF "(" Expression ")" THEN NEWLINE Statements EndIfClause
-                | IF "(" Expression ")" Statement
+    IfStmt : IF "(" Expr ")" THEN NEWLINE Block IfClose
+           | IF "(" Expr ")" Stmt
     """
     if p[5] == "THEN":
-        p[0] = {"type": "if", "condition": p[3],
-                "then": p[7], "elseif": p[8].get("elseif", []),
-                "else": p[8].get("else", None)}
+        p[0] = {
+            "node": "if_statement",
+            "condition": p[3],
+            "then_branch": p[7],
+            "elseif_branches": p[8].get("elseif_branches", []),
+            "else_branch": p[8].get("else_branch", None)
+        }
     else:
-        p[0] = {"type": "if", "condition": p[3],
-                "then": [p[5]], "elseif": [], "else": None}
+        p[0] = {
+            "node": "if_statement",
+            "condition": p[3],
+            "then_branch": [p[5]],
+            "elseif_branches": [],
+            "else_branch": None
+        }
 
 # collects optional ELSEIF chains, optional ELSE, then ENDIF
-def p_end_if_clause(p):
+def p_if_close(p):
     r"""
-    EndIfClause : ElseIfClauses ElseClause ENDIF NEWLINE
-                | ElseIfClauses ENDIF NEWLINE
+    IfClose : ElseIfs Else ENDIF NEWLINE
+            | ElseIfs ENDIF NEWLINE
     """
     if len(p) == 5:
-        p[0] = {"elseif": p[1], "else": p[2]}
+        p[0] = {
+            "elseif_branches": p[1],
+            "else_branch": p[2]
+        }
     else:
-        p[0] = {"elseif": p[1], "else": None}
+        p[0] = {
+            "elseif_branches": p[1],
+            "else_branch": None
+        }
 
 # zero or more ELSEIF branches
-def p_else_if_clauses(p):
+def p_else_ifs(p):
     r"""
-    ElseIfClauses : ElseIfClauses ElseIfClause
-                  | empty
+    ElseIfs : ElseIfs ElseIf
+            | empty
     """
     if len(p) == 2:
         p[0] = []
@@ -345,17 +364,21 @@ def p_else_if_clauses(p):
 
 # ELSEIF (X .EQ. 0) THEN
 #   PRINT *, 'ZERO'
-def p_else_if_clause(p):
+def p_else_if(p):
     r"""
-    ElseIfClause : ELSEIF "(" Expression ")" THEN NEWLINE Statements
+    ElseIf : ELSEIF "(" Expr ")" THEN NEWLINE Block
     """
-    p[0] = {"condition": p[3], "body": p[7]}
+    p[0] = {
+        "node": "elseif_branch",
+        "condition": p[3],
+        "body": p[7]
+    }
 
 # ELSE
 #   PRINT *, 'NEG'
-def p_else_clause(p):
+def p_else(p):
     r"""
-    ElseClause : ELSE NEWLINE Statements
+    Else : ELSE NEWLINE Block
     """
     p[0] = p[3]
 
@@ -367,26 +390,39 @@ def p_else_clause(p):
 # with step:     DO 10 I = 1, N, 2
 #   ...body...
 # 10 CONTINUE
-def p_do_loop(p):
+def p_do_stmt(p):
     r"""
-    DoStatement : DO INT_LITERAL ID "=" Expression "," Expression NEWLINE
-                | DO INT_LITERAL ID "=" Expression "," Expression "," Expression NEWLINE
+    DoStmt : DO INT_LITERAL ID "=" Expr "," Expr NEWLINE
+           | DO INT_LITERAL ID "=" Expr "," Expr "," Expr NEWLINE
     """
-    #p.parser.symbols.define_label(p[2])
     if len(p) == 9:
-        p[0] = {"type": "do_header", "target_label": p[2], "var": p[3], 
-                "start": p[5], "stop": p[7], "step": None}
+        p[0] = {
+            "node": "do_loop",
+            "label": p[2],
+            "loop_variable": p[3],
+            "start": p[5],
+            "end": p[7],
+            "step": None
+        }
     else:
-        p[0] = {"type": "do_header", "target_label": p[2], "var": p[3], 
-                "start": p[5], "stop": p[7], "step": p[9]}
-        
-# 10 CONTINUE  <- loop target label (also valid as a standalone no-op)
-def p_continue_statement(p):
-    r"""
-    ContinueStatement : CONTINUE NEWLINE
-    """
-    p[0] = {"type": "continue"}
+        p[0] = {
+            "node": "do_loop",
+            "label": p[2],
+            "loop_variable": p[3],
+            "start": p[5],
+            "end": p[7],
+            "step": p[9]
+        }
 
+
+# 10 CONTINUE  <- loop target label (also valid as a standalone no-op)
+def p_continue_stmt(p):
+    r"""
+    ContinueStmt : CONTINUE NEWLINE
+    """
+    p[0] = {
+        "node": "continue_statement"
+    }
 
 # ─────────────────────────────────────────────
 # CONTROL FLOW — GOTO
@@ -394,27 +430,33 @@ def p_continue_statement(p):
 
 # unconditional:  GOTO 100
 # computed:       GOTO (10, 20, 30), I  <- jumps to label 10, 20, or 30 based on I
-def p_goto_statement(p):
+def p_goto_stmt(p):
     r"""
-    GotoStatement : GOTO INT_LITERAL NEWLINE
-                  | GOTO "(" LabelList ")" "," Expression NEWLINE
+    GotoStmt : GOTO INT_LITERAL NEWLINE
+             | GOTO "(" LabelList ")" "," Expr NEWLINE
     """
     if len(p) == 4:
-        p[0] = {"type": "goto", "label": p[2]}
+        p[0] = {
+            "node": "goto_statement",
+            "label": p[2]
+        }
     else:
-        p[0] = {"type": "computed_goto", "labels": p[3], "index": p[6]}
+        p[0] = {
+            "node": "computed_goto_statement",
+            "labels": p[3],
+            "index": p[6]
+        }
 
-# (10, 20, 30)
+
+# (10, 20, 30)  <- list of jump targets for a computed GOTO
 def p_label_list(p):
     r"""
     LabelList : LabelList "," INT_LITERAL
               | INT_LITERAL
     """
     if len(p) == 2:
-        #p.parser.symbols.declare_label(p[1])
         p[0] = [p[1]]
     else:
-        #p.parser.symbols.declare_label(p[3])
         p[0] = p[1] + [p[3]]
 
 # ─────────────────────────────────────────────
@@ -423,41 +465,49 @@ def p_label_list(p):
 
 # with args:    CALL SWAP(A, B)
 # without args: CALL INIT
-def p_call_statement(p):
+def p_call_stmt(p):
     r"""
-    CallStatement : CALL ID "(" OptExpressionList ")" NEWLINE
-                  | CALL ID NEWLINE
+    CallStmt : CALL ID "(" OptExprList ")" NEWLINE
+             | CALL ID NEWLINE
     """
-    name = p[2]
-    #try:
-        #p.parser.symbols.lookup_fun(name)
-    #except SemanticError:
-        #pass  # forward references and intrinsics are allowed
     if len(p) == 7:
-        p[0] = {"type": "call", "name": name, "args": p[4]}
+        p[0] = {
+            "node": "call_statement",
+            "name": p[2],
+            "arguments": p[4]
+        }
     else:
-        p[0] = {"type": "call", "name": name, "args": []}
-
+        p[0] = {
+            "node": "call_statement",
+            "name": p[2],
+            "arguments": []
+        }
 
 # plain return:        RETURN
 # alternate return:    RETURN 1  (jumps to 1st * label in caller's arg list)
-def p_return_statement(p):
+def p_return_stmt(p):
     r"""
-    ReturnStatement : RETURN NEWLINE
-                    | RETURN Expression NEWLINE
+    ReturnStmt : RETURN NEWLINE
+               | RETURN Expr NEWLINE
     """
-    p[0] = {"type": "return", "value": p[2] if len(p) == 4 else None}
+    p[0] = {
+        "node": "return_statement",
+        "value": p[2] if len(p) == 4 else None
+    }
 
 # no code:      STOP
 # numeric code: STOP 42
 # message:      STOP 'DONE'
-def p_stop_statement(p):
+def p_stop_stmt(p):
     r"""
-    StopStatement : STOP NEWLINE
-                  | STOP INT_LITERAL NEWLINE
-                  | STOP STRING_LITERAL NEWLINE
+    StopStmt : STOP NEWLINE
+             | STOP INT_LITERAL NEWLINE
+             | STOP STRING_LITERAL NEWLINE
     """
-    p[0] = {"type": "stop", "code": p[2] if len(p) == 4 else None}
+    p[0] = {
+        "node": "stop_statement",
+        "code": p[2] if len(p) == 4 else None
+    }
 
 # ─────────────────────────────────────────────
 # I/O — PRINT / WRITE / READ
@@ -465,45 +515,59 @@ def p_stop_statement(p):
 
 # list-directed:  PRINT *, X, Y
 # formatted:      PRINT 100, X, Y
-def p_print(p):
+def p_print_stmt(p):
     r"""
-    Print : PRINT "*" "," ExpressionList NEWLINE
-          | PRINT INT_LITERAL "," ExpressionList NEWLINE
+    PrintStmt : PRINT "*" "," ExprList NEWLINE
+              | PRINT INT_LITERAL "," ExprList NEWLINE
     """
-    p[0] = {"type": "print", "format": p[2], "items": p[4]}
+    p[0] = {
+        "node": "print_statement",
+        "format": p[2],
+        "items": p[4]
+    }
 
 # to stdout list-directed:  WRITE (*, *) X, Y
 # to unit with format:      WRITE (6, 100) X, Y
-def p_write(p):
+def p_write_stmt(p):
     r"""
-    Write : WRITE "(" IOControlList ")" ExpressionList NEWLINE
-          | WRITE "(" IOControlList ")" NEWLINE
+    WriteStmt : WRITE "(" IOControls ")" ExprList NEWLINE
+              | WRITE "(" IOControls ")" NEWLINE
     """
-    p[0] = {"type": "write", "controls": p[3],
-            "items": p[5] if len(p) == 7 else []}
+    p[0] = {
+        "node": "write_statement",
+        "controls": p[3],
+        "items": p[5] if len(p) == 7 else []
+    }
 
 # short form:   READ *, X, Y
 # full form:    READ (5, 100) X, Y
 # no items:     READ (5, END=99)
-def p_read(p):
+def p_read_stmt(p):
     r"""
-    Read : READ "*" "," VariableList NEWLINE
-         | READ "(" IOControlList ")" VariableList NEWLINE
-         | READ "(" IOControlList ")" NEWLINE
+    ReadStmt : READ "*" "," ExprList NEWLINE
+             | READ "(" IOControls ")" ExprList NEWLINE
+             | READ "(" IOControls ")" NEWLINE
     """
     if p[2] == "*":
-        p[0] = {"type": "read", "controls": None, "items": p[4]}
+        p[0] = {
+            "node": "read_statement",
+            "controls": None,
+            "items": p[4]
+        }
     else:
-        p[0] = {"type": "read", "controls": p[3],
-                "items": p[5] if len(p) == 7 else []}
+        p[0] = {
+            "node": "read_statement",
+            "controls": p[3],
+            "items": p[5] if len(p) == 7 else []
+        }
 
 # (*, *)       <- unit=*, format=*
 # (6, 100)     <- unit=6, format label=100
 # (UNIT=6, FMT=100, ERR=99)
-def p_io_control_list(p):
+def p_io_controls(p):
     r"""
-    IOControlList : IOControlList "," IOControl
-                  | IOControl
+    IOControls : IOControls "," IOControl
+               | IOControl
     """
     if len(p) == 2:
         p[0] = [p[1]]
@@ -517,47 +581,58 @@ def p_io_control(p):
     r"""
     IOControl : "*"
               | INT_LITERAL
-              | ID "=" Expression
+              | ID "=" Expr
     """
     if len(p) == 2:
         p[0] = p[1]
     else:
-        p[0] = {"key": p[1], "value": p[3]}
+        p[0] = {
+            "node": "io_control",
+            "keyword": p[1],
+            "value": p[3]
+        }
 
 # ─────────────────────────────────────────────
 # ASSIGNMENT
 # ─────────────────────────────────────────────
 
 # normal:   X = 3.14
-def p_assignment(p):
+def p_assign_stmt(p):
     r"""
-    Assignment : LValue "=" Expression NEWLINE
+    AssignStmt : Target "=" Expr NEWLINE
     """
-    #var = p[1]["name"]
-    #p.parser.symbols.initialize(var)
-    p[0] = {"type": "assignment", "variable": p[1], "expression": p[3]}
-    
+    p[0] = {
+        "node": "assignment",
+        "target": p[1],
+        "value": p[3]
+    }
 
-def p_lvalue(p):
+def p_target(p):
     r"""
-    LValue : ID
-           | ID "(" ExpressionList ")"
+    Target : ID
+           | ID "(" ExprList ")"
     """
     if len(p) == 2:
-        p[0] = {"node": "var", "name": p[1]}
+        p[0] = {
+            "node": "variable_reference",
+            "name": p[1]
+        }
     else:
-        p[0] = {"node": "subscript", "name": p[1], "indices": p[3]}
-
+        p[0] = {
+            "node": "array_reference",
+            "name": p[1],
+            "indices": p[3]
+        }
 
 # ─────────────────────────────────────────────
 # EXPRESSIONS
 # ─────────────────────────────────────────────
 
 # PRINT *, A, B+1, 'hello'
-def p_expression_list(p):
+def p_expr_list(p):
     r"""
-    ExpressionList : ExpressionList "," Expression
-                   | Expression
+    ExprList : ExprList "," Expr
+             | Expr
     """
     if len(p) == 2:
         p[0] = [p[1]]
@@ -565,141 +640,173 @@ def p_expression_list(p):
         p[0] = p[1] + [p[3]]
 
 # allows empty parentheses like CALL SUB())
-def p_opt_expression_list(p):
+def p_opt_expr_list(p):
     r"""
-    OptExpressionList : ExpressionList
-                      | empty
+    OptExprList : ExprList
+                | empty
     """
     p[0] = p[1] if p[1] is not None else []
 
 # entry point: every expression goes through the precedence tower
-def p_expression(p):
+def p_expr(p):
     r"""
-    Expression : LogicalExpression
+    Expr : EqvExpr
     """
     p[0] = p[1]
 
 # lowest precedence: .EQV. and .NEQV.
 #   A .EQV. B    <- true if A and B have the same logical value
 #   A .NEQV. B   <- true if they differ
-def p_logical_expression_eqv(p):
+def p_eqv_expr(p):
     r"""
-    LogicalExpression : LogicalExpression EQV LogicalOrExpr
-                      | LogicalExpression NEQV LogicalOrExpr
-                      | LogicalOrExpr
+    EqvExpr : EqvExpr EQV OrExpr
+            | EqvExpr NEQV OrExpr
+            | OrExpr
     """
     if len(p) == 2:
         p[0] = p[1]
     else:
-        p[0] = {"type": "binop", "op": p[2], "left": p[1], "right": p[3]}
+        p[0] = {
+            "node": "binary_operation",
+            "operator": p[2],
+            "left": p[1],
+            "right": p[3]
+        }
 
 # .OR.  <- true if either operand is true
-#   X .GT. 0 .OR. Y .GT. 0
-def p_logical_or(p):
+def p_or_expr(p):
     r"""
-    LogicalOrExpr : LogicalOrExpr OR LogicalAndExpr
-                  | LogicalAndExpr
+    OrExpr : OrExpr OR AndExpr
+           | AndExpr
     """
     if len(p) == 2:
         p[0] = p[1]
     else:
-        p[0] = {"type": "binop", "op": ".OR.", "left": p[1], "right": p[3]}
+        p[0] = {
+            "node": "binary_operation",
+            "operator": ".OR.",
+            "left": p[1],
+            "right": p[3]
+        }
 
 # .AND.  <- true if both operands are true
-#   X .GT. 0 .AND. Y .GT. 0
-def p_logical_and(p):
+def p_and_expr(p):
     r"""
-    LogicalAndExpr : LogicalAndExpr AND LogicalNotExpr
-                   | LogicalNotExpr
+    AndExpr : AndExpr AND NotExpr
+            | NotExpr
     """
     if len(p) == 2:
         p[0] = p[1]
     else:
-        p[0] = {"type": "binop", "op": ".AND.", "left": p[1], "right": p[3]}
+        p[0] = {
+            "node": "binary_operation",
+            "operator": ".AND.",
+            "left": p[1],
+            "right": p[3]
+        }
 
 # .NOT.  <- logical negation
-#   .NOT. FLAG
-def p_logical_not(p):
+def p_not_expr(p):
     r"""
-    LogicalNotExpr : NOT RelationalExpr
-                   | RelationalExpr
+    NotExpr : NOT NotExpr
+            | RelExpr
     """
     if len(p) == 2:
         p[0] = p[1]
     else:
-        p[0] = {"type": "unop", "op": ".NOT.", "operand": p[2]}
+        p[0] = {
+            "node": "unary_operation",
+            "operator": ".NOT.",
+            "operand": p[2]
+        }
 
 # comparison operators: .EQ. .NE. .LT. .LE. .GT. .GE.
-#   I .GE. 1 .AND. I .LE. 10
-def p_relational_expression(p):
+def p_rel_expr(p):
     r"""
-    RelationalExpr : ArithmeticExpression EQ ArithmeticExpression
-                   | ArithmeticExpression NE ArithmeticExpression
-                   | ArithmeticExpression LT ArithmeticExpression
-                   | ArithmeticExpression LE ArithmeticExpression
-                   | ArithmeticExpression GT ArithmeticExpression
-                   | ArithmeticExpression GE ArithmeticExpression
-                   | ArithmeticExpression
+    RelExpr : AdditiveExpr EQ AdditiveExpr
+            | AdditiveExpr NE AdditiveExpr
+            | AdditiveExpr LT AdditiveExpr
+            | AdditiveExpr LE AdditiveExpr
+            | AdditiveExpr GT AdditiveExpr
+            | AdditiveExpr GE AdditiveExpr
+            | AdditiveExpr
     """
     if len(p) == 2:
         p[0] = p[1]
     else:
-        p[0] = {"type": "binop", "op": p[2], "left": p[1], "right": p[3]}
+        p[0] = {
+            "node": "binary_operation",
+            "operator": p[2],
+            "left": p[1],
+            "right": p[3]
+        }
 
-# addition, subtraction, string concatenation (//)
-#   A + B - C
-#   'HEL' // 'LO'
-def p_arithmetic_add(p):
+# addition, subtraction, and string concatenation (//)
+def p_additive_expr(p):
     r"""
-    ArithmeticExpression : ArithmeticExpression "+" Term
-                         | ArithmeticExpression "-" Term
-                         | ArithmeticExpression CONCAT Term
-                         | Term
+    AdditiveExpr : AdditiveExpr "+" MultiplicativeExpr
+                 | AdditiveExpr "-" MultiplicativeExpr
+                 | AdditiveExpr CONCAT MultiplicativeExpr
+                 | MultiplicativeExpr
     """
     if len(p) == 2:
         p[0] = p[1]
     else:
-        p[0] = {"type": "binop", "op": p[2], "left": p[1], "right": p[3]}
+        p[0] = {
+            "node": "binary_operation",
+            "operator": p[2],
+            "left": p[1],
+            "right": p[3]
+        }
 
 # multiplication and division
-#   A * B / C
-def p_term(p):
+def p_multiplicative_expr(p):
     r"""
-    Term : Term "*" UnaryExpr
-         | Term "/" UnaryExpr
-         | UnaryExpr
+    MultiplicativeExpr : MultiplicativeExpr "*" UnaryExpr
+                       | MultiplicativeExpr "/" UnaryExpr
+                       | UnaryExpr
     """
     if len(p) == 2:
         p[0] = p[1]
     else:
-        p[0] = {"type": "binop", "op": p[2], "left": p[1], "right": p[3]}
+        p[0] = {
+            "node": "binary_operation",
+            "operator": p[2],
+            "left": p[1],
+            "right": p[3]
+        }
 
 # unary plus and minus
-#   -X
-#   +1
-def p_unary_expr (p):
+def p_unary_expr(p):
     r"""
-    UnaryExpr : "-" PowerExpr
-              | "+" PowerExpr
-              | PowerExpr
+    UnaryExpr : "-" PowExpr
+              | "+" PowExpr
+              | PowExpr
     """
     if len(p) == 2:
         p[0] = p[1]
     else:
-        p[0] = {"type": "unop", "op": p[1], "operand": p[2]}
+        p[0] = {
+            "node": "unary_operation",
+            "operator": p[1],
+            "operand": p[2]
+        }
 
 # exponentiation — right-associative: 2**3**4 = 2**(3**4)
-#   X**2
-#   2**N**M
-def p_power_expr(p):
+def p_pow_expr(p):
     r"""
-    PowerExpr : Primary POWER Primary
-              | Primary
+    PowExpr : Atom POWER Atom
+            | Atom
     """
     if len(p) == 2:
         p[0] = p[1]
     else:
-        p[0] = {"type": "binop", "op": "**", "left": p[1], "right": p[3]}
+        p[0] = {
+            "node": "binary_operation",
+            "operator": "**",
+            "left": p[1],
+            "right": p[3]
+        }
 
 # atomic values: literals, variables, function calls, parenthesised expressions
 #   42        <- INT_LITERAL
@@ -707,42 +814,76 @@ def p_power_expr(p):
 #   1.0D-10   <- DOUBLE_LITERAL
 #   'hello'   <- STRING_LITERAL
 #   .TRUE.    <- TRUE
-#   X         <- Variable     -> VarOrFunCall
-#   SIN(X)    <- FunctionCall -> VarOrFunCall
+#   X         <- variable     -> VarOrCall
+#   SIN(X)    <- function call -> VarOrCall
 #   (A + B)   <- parenthesised expression
-def p_primary(p):
+def p_atom(p):
     r"""
-    Primary : INT_LITERAL
-            | REAL_LITERAL
-            | DOUBLE_LITERAL
-            | STRING_LITERAL
-            | TRUE
-            | FALSE
-            | VarOrFunCall
-            | "(" Expression ")"
+    Atom : INT_LITERAL
+         | REAL_LITERAL
+         | DOUBLE_LITERAL
+         | STRING_LITERAL
+         | TRUE
+         | FALSE
+         | VarOrCall
+         | "(" Expr ")"
     """
     if len(p) == 4:
         p[0] = p[2]
     else:
-        p[0] = p[1]
+        value = p[1]
 
+        if isinstance(value, int):
+            p[0] = {
+                "node": "integer_literal",
+                "value": value
+            }
+        elif isinstance(value, float):
+            p[0] = {
+                "node": "real_literal",
+                "value": value
+            }
+        elif isinstance(value, str) and value not in [".TRUE.", ".FALSE."]:
+            p[0] = {
+                "node": "string_literal",
+                "value": value
+            }
+        elif value == ".TRUE.":
+            p[0] = {
+                "node": "logical_literal",
+                "value": True
+            }
+        elif value == ".FALSE.":
+            p[0] = {
+                "node": "logical_literal",
+                "value": False
+            }
+        else:
+            p[0] = value
 
-#represents both a variable:
-# scalar:        X
-# array element: A(I)
-# multi-dim:     B(I, J)
-# and function calls:
+# represents both a variable reference:
+#   scalar:        X
+#   array element: A(I)
+#   multi-dim:     B(I, J)
+# and a function call:
 #   SIN(X)
 #   MAX(A, B, C)
-def p_var_or_fun_call(p):
+def p_var_or_call(p):
     r"""
-    VarOrFunCall : ID
-                 | ID "(" OptExpressionList ")"
+    VarOrCall : ID
+              | ID "(" OptExprList ")"
     """
     if len(p) == 2:
-        p[0] = {"node": "id", "name": p[1]}
+        p[0] = {
+            "node": "variable_reference",
+            "name": p[1]
+        }
     else:
-        p[0] = {"node": "varOrFun", "name": p[1], "args": p[3]}
+        p[0] = {
+            "node": "function_call",
+            "name": p[1],
+            "arguments": p[3]
+        }
 
 # ─────────────────────────────────────────────
 # HELPERS

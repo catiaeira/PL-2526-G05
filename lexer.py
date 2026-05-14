@@ -7,7 +7,7 @@ class LexError(Exception):
 not_implemented_keywords =  {
     'ASSIGN': 'ASSIGN', 'BACKSPACE': 'BACKSPACE', 'BLOCKDATA': 'BLOCKDATA', 
     'CLOSE': 'CLOSE', 'COMMON': 'COMMON', 'DATA': 'DATA', 'ENDFILE': 'ENDFILE',
-    'ENTRY': 'ENTRY', 'EXTERNAL': 'EXTERNAL', 'FORMAT': 'FORMAT',
+    'ENTRY': 'ENTRY', 'EXTERNAL': 'EXTERNAL', 'FORMAT': 'FORMAT', 'EQUIVALENCE': 'EQUIVALENCE',
     'IMPLICIT': 'IMPLICIT', 'INQUIRE': 'INQUIRE', 'INTRINSIC': 'INTRINSIC', 'OPEN': 'OPEN',
     'PAUSE': 'PAUSE', 'REWIND': 'REWIND', 'REWRITE': 'REWRITE', 'TO': 'TO', 'HOLLERITH' : 'HOLLERITH',
     'DIMENSION': 'DIMENSION'
@@ -16,10 +16,10 @@ not_implemented_keywords =  {
 keywords = {
     'CALL': 'CALL', 'CONTINUE': 'CONTINUE', 'DO': 'DO',
     'ELSE': 'ELSE', 'ELSEIF': 'ELSEIF', 'END': 'END',
-    'ENDIF': 'ENDIF', 'EQUIVALENCE': 'EQUIVALENCE',
-    'FUNCTION': 'FUNCTION', 'GOTO': 'GOTO', 'IF': 'IF',
-    'PARAMETER': 'PARAMETER', 'PRINT': 'PRINT', 'PROGRAM': 'PROGRAM',
-    'READ': 'READ', 'RETURN': 'RETURN', 'SAVE': 'SAVE', 'STOP': 'STOP', 
+    'ENDIF': 'ENDIF', 'FUNCTION': 'FUNCTION',
+    'GOTO': 'GOTO', 'IF': 'IF', 'PARAMETER': 'PARAMETER',
+    'PRINT': 'PRINT', 'PROGRAM': 'PROGRAM', 'READ': 'READ',
+    'RETURN': 'RETURN', 'SAVE': 'SAVE', 'STOP': 'STOP', 
     'SUBROUTINE': 'SUBROUTINE', 'THEN': 'THEN',
     'WRITE': 'WRITE', 'INTEGER': 'INTEGER', 'REAL': 'REAL',
     'CHARACTER': 'CHARACTER', 'COMPLEX': 'COMPLEX',
@@ -207,9 +207,6 @@ class FortranLexer:
         t.value = upper
         return t
 
-    def t_stmt_exclamation (self, t):
-        r'![^\n]*'
-        pass
 
     def t_stmt_literal(self, t):
         r'[(),:\+\-\*/=]'
