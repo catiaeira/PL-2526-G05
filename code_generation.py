@@ -3,6 +3,7 @@ import parser as fortran_parser
 from code_gen_symbol_table import CodeGenSymbolTable
 
 symbol_table = CodeGenSymbolTable()
+if_counter = 0
 
 def generate_print(stmt_dict):
     """
@@ -157,14 +158,61 @@ def generate_goto(stmt_dict):
     return [f"JUMP {label}"]
 
 
+def generate_if(stmt_dict):
+    """
+    Generates code for an IF statement.
+    Takes a dict of the form {node: 'if_statement', condition: , then_branch: list[stmts], elsif_branches: list,
+    else_branch: list[stmts]}
+    """
+    global if_counter
+    n = if_counter
+    if_counter += 1
+
+    condition = stmt_dict["condition"]
+    then_branch = stmt_dict["then_branch"]
+    elseif_branches = stmt_dict["elseif_branches"]
+    else_branch = stmt_dict["else_branch"]
+
+    has_elseif = len(elseif_branches) > 0
+    has_else = else_branch is not None and len(else_branch) > 0
+
+    instructions: list[str] = []
+
+    instructions += generate_expression(condition)
+    if has_elseif:
+        instructions += [f"JZ elseif{n}_0"]
+    elif has_else:
+        instructions += [f"JZ else{n}"]
+    else:
+        instructions += [f"JZ endif{n}"]
+
+    instructions += generate_code(then_branch)
+    instructions += [f"JUMP endif{n}"]
+
+    for idx, branch in enumerate(elseif_branches):
+        next_label = f"elseif{n}_{idx+1}" if idx+1 < len(elseif_branches) else (f"else{n}" if has_else else f"endif{n}")
+        instructions += [f"elseif{n}_{idx}:"]
+        instructions += generate_expression(branch["condition"])
+        instructions += [f"JZ {next_label}"]
+        instructions += generate_code(branch["body"])
+        instructions += [f"JUMP endif{n}"]
+
+    if has_else:
+        instructions += [f"else{n}:"]
+        instructions += generate_code(else_branch)
+
+    instructions += [f"endif{n}:"]
+    return instructions
+
+
 def generate_stmt(label, stmt_dict):
     """
     Generates code for a single statement.
     Takes a label (can be None) and a dict of the form {node: string, ...} (the rest of the keys depend on the node type)
     """
     node = stmt_dict["node"]
-    label_instruction = [f"{label}:"] if label else []
-    stmt_instructions = []
+    label_instruction: list[str] = [f"{label}:"] if label else []
+    stmt_instructions: list[str] = []
     match node:
         case "print_statement":
             stmt_instructions = generate_print(stmt_dict)
@@ -176,6 +224,8 @@ def generate_stmt(label, stmt_dict):
             stmt_instructions = generate_assignment(stmt_dict)
         case "goto_statement":
             stmt_instructions = generate_goto(stmt_dict)
+        case "if_statement":
+            stmt_instructions = generate_if(stmt_dict)
 
     return label_instruction + stmt_instructions
 
