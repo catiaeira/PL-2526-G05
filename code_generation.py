@@ -7,22 +7,26 @@ symbol_table = CodeGenSymbolTable()
 def generate_print(stmt_dict):
     """
     Generates code for a print statement.
-    Takes a dict of the form {type: 'print', format: str, items: list}
+    Takes a dict of the form {node: 'print_statement', format: str, items: list}
     """
     format = stmt_dict["format"]
     items = stmt_dict["items"]
 
     instructions: list[str] = []
     for item in items:
-        if isinstance(item, str):
-            instructions += [f"PUSHS \"{item}\"", "WRITES"]
-        elif isinstance(item, dict):
+        node = item["node"]
+        if node == "string_literal":
+            instructions += [f"PUSHS \"{item['value']}\"", "WRITES"]
+        elif node == "variable_reference":
             var_name = item["name"]
             index, data_type = symbol_table.lookup(var_name)
             write_instruction = ""
             match data_type:
                 case "INTEGER":
                     write_instruction = "WRITEI"
+                case "REAL":
+                    write_instruction = "WRITEF"
+
             instructions += [f"PUSHG {index}", write_instruction]
 
     return instructions + ["WRITELN"]
@@ -57,12 +61,14 @@ def generate_declaration(stmt_dict):
     Generates code for a variable declaration statement.
     Takes a dict of the form {type: 'declaration', dtype: string, variables: list}.
     """
-    data_type = stmt_dict["dtype"]
+    data_type = stmt_dict["data_type"]
     match data_type:
         case "INTEGER":
             return generate_declaration_integer(stmt_dict["variables"])
         case "LOGICAL":
             return generate_declaration_logical(stmt_dict["variables"])
+
+    print("WARNING: Added no instructions in generate_declaration")
     return ["// added no instructions"]
 
 
@@ -85,24 +91,39 @@ def generate_read(stmt_dict):
 
 def generate_expression(expression):
     """
-    Generates code for a single expression. Enters recursion of the expression is nested.
-    Takes an expression node that can be a literal or a dict of the form {type: string, op: string, left: expression, right: expression}.
+    Generates code for a single expression. Enters recursion if the expression is nested.
+    Takes an expression node that can be a simple dict {node: "<something>_literal", value: literal}
+    or a dict with operations (e.g., binary_operation)
     """
-    # checks for bools first because bool is a subclass of int
-    if isinstance(expression, bool):
-        int_val = 1 if expression else 0
-        return [f"PUSHI {int_val}"]
-    elif isinstance(expression, int):
-        return [f"PUSHI {expression}"]
-    elif isinstance(expression, dict):
-        if expression.get("node") == "id":
+    if not isinstance(expression, dict):  # this should never happen
+        print("WARNING: Added no instructions in generate_expression")
+        return ["// added no instructions"]
+
+    node = expression["node"]
+
+    match node:
+        case "integer_literal":
+            return [f"PUSHI {expression['value']}"]
+
+        case "logical_literal":
+            return [f"PUSHI {1 if expression['value'] else 0}"]
+
+        case "real_literal":
+            return [f"PUSHF {expression['value']}"]
+
+        case "string_literal":
+            return [f"PUSHS \"{expression['value']}\""]
+
+        case "variable_reference":
             var_idx, _ = symbol_table.lookup(expression["name"])
             return [f"PUSHG {var_idx}"]
-        elif expression.get("type") == "binop":
-            instructions: list[str] = []
+
+        case "binary_operation":
+            instructions = []
             instructions += generate_expression(expression["left"])
             instructions += generate_expression(expression["right"])
-            match expression["op"]:
+            # TODO: add support for REAL binary operations (FADD, FSUB, ...)
+            match expression["operator"]:
                 case "+":
                     instructions += ["ADD"]
                 case "-":
@@ -113,70 +134,72 @@ def generate_expression(expression):
                     instructions += ["MUL"]
             return instructions
 
+    print("WARNING: Added no instructions in generate_expression")
     return ["// added no instructions"]
 
 def generate_assignment(stmt_dict):
     """
     Generates code for an assignment statement.
-    Takes a dict of the form {type: 'assignment', variable: {node: 'var', name: string}, expression: }
+    Takes a dict of the form {node: 'assignment', target: {node: 'variable_reference', name: string}, value: expression}.
     """
-    var_name = stmt_dict["variable"]["name"]
-    expression = stmt_dict["expression"]
+    var_name = stmt_dict["target"]["name"]
+    expression = stmt_dict["value"]
     index, _ = symbol_table.lookup(var_name)
     return generate_expression(expression) + [f"STOREG {index}"]
 
 
-def generate_stmt(full_stmt_dict):
+def generate_stmt(label, stmt_dict):
     """
     Generates code for a single statement.
-    Takes a dict of the form {label: int, stmt: dict}
+    Takes a label (can be None) and a dict of the form {node: string, ...} (the rest of the keys depend on the node type)
     """
-    stmt_dict = full_stmt_dict["stmt"]
-    stmt_type = stmt_dict["type"]
-    match stmt_type:
-        case "print":
+    node = stmt_dict["node"]
+    match node:
+        case "print_statement":
             return generate_print(stmt_dict)
-        case "declaration":
+        case "variable_declaration":
             return generate_declaration(stmt_dict)
-        case "read":
+        case "read_statement":
             return generate_read(stmt_dict)
         case "assignment":
             return generate_assignment(stmt_dict)
+
+    print("WARNING: Added no instructions in generate_stmt")
     return ["// added no instructions"]
 
 
 def generate_do(do_stmt, body_stmts, start_index) -> tuple[list[str], int]:
     """
     Generates code for a DO loop.
-    Takes the do_header stmt: {type: 'do_header', target_label: int, var: string, start: int|var, stop: int|var,
+    Takes the do_header stmt: {type: 'do_header', target_label: int, var: string, start: int|var, end: int|var,
     step: int|var}, the list of body statements to traverse until we find CONTINUE with the correct label and
     the index of the body from where to start.
     Returns the loop instructions and the index from where to continue traversing the AST.
     """
-    label = do_stmt["target_label"]
-    loop_var = do_stmt["var"]
+    label = do_stmt["label"]
+    loop_var = do_stmt["loop_variable"]
     start = do_stmt["start"]
-    stop = do_stmt["stop"]
+    end = do_stmt["end"]
     step = do_stmt["step"]
 
     instructions: list[str] = []
 
-    # first, we need to determine if stop and step are variables
+    # first, we need to determine if end and step are variables
     # if they're not, we need to create temporary variables and later pop them (hence saving the booleans)
-    stop_temp = True
-    stop_idx = -1
-    if isinstance(stop, dict) and stop.get("node") == "id":
-        stop_temp = False
-        stop_idx, _ = symbol_table.lookup(stop["name"])
+    end_temp = True
+    end_idx = -1
+    if isinstance(end, dict) and end.get("node") == "variable_reference":
+        end_temp = False
+        end_idx, _ = symbol_table.lookup(end["name"])
     else:
-        stop_idx = symbol_table.insert_temp("__tmp__stop", "INTEGER")
-        instructions += generate_expression(stop) + [f"STOREG {stop_idx}"]
+        end_idx = symbol_table.insert_temp("__tmp__end", "INTEGER")
+        instructions += generate_expression(end) + [f"STOREG {end_idx}"]
 
     step_temp = True
     step_idx = -1
     if step is None:
-        step = 1
-    if isinstance(step, dict) and step.get("node") == "id":
+        step = {"node": "integer_literal", "value": 1}
+    if isinstance(step, dict) and step.get("node") == "variable_reference":
         step_temp = False
         step_idx, _ = symbol_table.lookup(step["name"])
     else:
@@ -195,26 +218,33 @@ def generate_do(do_stmt, body_stmts, start_index) -> tuple[list[str], int]:
     instructions += [f"STOREG {loop_var_idx}"]
 
     # check loop condition
-    instructions += [f"{label}:", f"PUSHG {loop_var_idx}", f"PUSHG {stop_idx}", "INFEQ", f"JZ {label}end"]
+    instructions += [f"{label}:", f"\tPUSHG {loop_var_idx}", f"\tPUSHG {end_idx}", "\tINFEQ", f"\tJZ {label}end"]
 
     # loop body
+    body_instructions: list[str] = []
     i = start_index
     while i < len(body_stmts):
-        full_stmt_dict = body_stmts[i]
-        if full_stmt_dict["label"] == label:
+        lbl, stmt_dict = unwrap(body_stmts[i])
+        if lbl == label:
             # found the CONTINUE instruction, so the loop body ends here
             i += 1
             break
-        instructions += generate_stmt(full_stmt_dict)
+        _, inner_stmt = unwrap(body_stmts[i])
+        body_instructions += generate_stmt(None, inner_stmt)
         i += 1
 
+    # add tabs to the body instructions and concatenate them to the global instructions
+    for instr in body_instructions:
+        with_tab = ["\t" + instr]
+        instructions += with_tab
+
     # increment
-    instructions += [f"PUSHG {step_idx}", f"PUSHG {loop_var_idx}", "ADD", f"STOREG {loop_var_idx}", f"JUMP {label}", f"{label}end:"]
+    instructions += [f"\tPUSHG {step_idx}", f"\tPUSHG {loop_var_idx}", "\tADD", f"\tSTOREG {loop_var_idx}", f"\tJUMP {label}", f"{label}end:"]
 
     # recall if we had to create temporary variable to pop the correct amount
     # for the symbol_table, the pops don't even have to match the order, they just need to be in the same amount
     npop = 0
-    if stop_temp:
+    if end_temp:
         symbol_table.pop_temp()
         npop += 1
     if step_temp:
@@ -225,6 +255,15 @@ def generate_do(do_stmt, body_stmts, start_index) -> tuple[list[str], int]:
     return (instructions, i)
 
 
+def unwrap(item):
+    """
+    Helper that given any body item, returns (label, stmt_dict)
+    """
+    if item.get("node") == "labeled_statement":
+        return item["label"], item["statement"]
+    else:
+        return None, item
+
 def generate_code(value):
     """
     Generates the machine instructions by traversing the AST recursively.
@@ -234,38 +273,29 @@ def generate_code(value):
 
     if value is None:
         pass
-
     elif isinstance(value, bool):
         pass
-
     elif isinstance(value, (int, float)):
         pass
-
     elif isinstance(value, str):
         pass
 
     elif isinstance(value, list):
-        if value[0].get("stmt") is not None:
-            nstmts = len(value)
-            i: int = 0
-            while i < nstmts:
-                full_stmt_dict = value[i]
-                stmt_dict = full_stmt_dict["stmt"]
-                # special handling of do loops
-                if stmt_dict["type"] == "do_header":
-                    do_instrs, i = generate_do(stmt_dict, value, i + 1)
-                    instructions += do_instrs
-                else:
-                    instructions += generate_code(full_stmt_dict)
-                    i += 1
-
+        i: int = 0
+        while i < len(value):
+            label, stmt_dict = unwrap(value[i])
+            # special handling of do loops
+            if stmt_dict.get("node") == "do_loop":
+                do_instrs, i = generate_do(stmt_dict, value, i + 1)
+                instructions += do_instrs
+            else:
+                instructions += generate_stmt(label, stmt_dict)
+                i += 1
 
     elif isinstance(value, dict):
-        if value.get("type") == "program":
+        if value.get("node") == "program":
             print(f"Generating code for program {value['name']}")
             instructions += generate_code(value["body"])
-        elif value.get("stmt") is not None:
-            instructions += generate_stmt(value)
 
     else:
         pass
