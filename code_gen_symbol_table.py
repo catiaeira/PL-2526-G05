@@ -1,8 +1,9 @@
 class CodeGenSymbolTable:
     
     def __init__(self):
-        self.variable_dict = {}
+        self.variable_dict: dict[str, tuple[int, str]] = {}
         self.global_index: int = 0
+        self.temp_vars_stack: list[tuple[str, int, str]] = []
 
     def insert(self, name: str, data_type: str) -> int:
         """ Returns the index for the inserted variable. """
@@ -11,6 +12,19 @@ class CodeGenSymbolTable:
         self.global_index += 1
         return index
 
-    def lookup(self, name:str):
+    def insert_temp(self, name: str, data_type: str) -> int:
+        """ Inserts a variable in the temporary stack, returning the index for the new variable. """
+        index = self.global_index
+        self.temp_vars_stack.append((name, index, data_type))
+        self.global_index += 1
+        return index
+
+    def lookup(self, name:str) -> tuple[int, str]:
         """ Returns a tuple of the form (index, data_type). """
         return self.variable_dict[name]
+
+    def pop_temp(self):
+        """ Removes the most recent temporary variable and decrements the global index by 1. """
+        self.temp_vars_stack.pop()
+        self.global_index -= 1
+
