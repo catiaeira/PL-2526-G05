@@ -1,5 +1,6 @@
 # Cache folder
 /__pycache__
+*/__pycache__
 
 # PLY (debug?) logs 
 *.out

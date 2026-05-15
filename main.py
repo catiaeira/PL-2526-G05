@@ -1,6 +1,6 @@
 import lexer as fortran_lexer
 import parser as fortran_parser
-from semantic import SemanticAnalyzer, SemanticError, SymbolTable
+from semantic import SemanticAnalyzer
 
 def dump_tokens(text):
     from lexer import build_lexer
@@ -18,152 +18,95 @@ def preprocess (code): # truncates code after col 72
     truncated_lines = [line[:72] for line in lines]
     return "\n".join(truncated_lines)
 
-def main():
-    print("Options:")
-    print("code | e1 | e2 | e3 | e4 | e5")
-    option = input().strip()
-
-    code = """\
-      ! comment
-C     this is a comment
-*     this is a comment
-c     this is a comment
-
-      PROGRAM MAIN
-      INTEGER A, B
-      READ(*,*) A
-      B = A *
-     & 10
-      IF (B .GT. 50) THEN
-          PRINT *, 'HIGH'
-      ELSE
-          PRINT *, 'LOW'
-      ENDIF
-5     DO 20 I = 1, 5 ! comment
-          CALL LOGIT(I) !comment
-   20 CONTINUE! comment
-      END
-!     comment
-
-      SUBROUTINE LOGIT(VAL)
-      PRINT *, VAL ! comment
-      END
-"""
-
-    e1 = '''\
-      PROGRAM HELLO
-      PRINT *, 'Ola, Mundo!'
-      END
-'''
-
-    e2 = '''\
-      PROGRAM FATORIAL
-      INTEGER N, I, FAT
-      PRINT *, 'Introduza um numero inteiro positivo:'
-      READ *, N
-      FAT = 1
-      DO 10 I = 1, N
-      FAT = FAT * I
-   10 CONTINUE
-      PRINT *, 'Fatorial de ', N, ': ', FAT
-      END
-'''
-
-    e3 = '''\
-      PROGRAM PRIMO
-      INTEGER NUM, I
-      LOGICAL ISPRIM
-      PRINT *, 'Introduza um numero inteiro positivo:'
-      READ *, NUM
-      ISPRIM = .TRUE.
-      I = 2
-   20 IF (I .LE. (NUM/2) .AND. ISPRIM) THEN
-          IF (MOD(NUM, I) .EQ. 0) THEN
-             ISPRIM = .FALSE.
-          ENDIF
-          I = I + 1
-          GOTO 20
-      ENDIF
-      IF (ISPRIM) THEN
-          PRINT *, NUM, ' e um numero primo'
-      ELSE
-          PRINT *, NUM, ' nao e um numero primo'
-      ENDIF
-      END
-'''
-
-    e4 = '''\
-      PROGRAM SOMAARR
-      INTEGER NUMS(5)
-      INTEGER I, SOMA
-      SOMA = 0
-      PRINT *, 'Introduza 5 numeros inteiros:'
-      DO 30 I = 1, 5
-          READ *, NUMS(I)
-          SOMA = SOMA + NUMS(I)
-   30 CONTINUE
-      PRINT *, 'A soma dos numeros e: ', SOMA
-      END
-'''
-
-    e5 = '''\
-      PROGRAM CONVERSOR
-      INTEGER NUM, BASE, RESULT, CONVRT
-      PRINT *, 'INTRODUZA UM NUMERO DECIMAL INTEIRO:'
-      READ *, NUM
-      DO 10 BASE = 2, 9
-          RESULT = CONVRT(NUM, BASE)
-          PRINT *, 'BASE ', BASE, ': ', RESULT
-   10 CONTINUE
-      END
-      INTEGER FUNCTION CONVRT(N, B)
-      INTEGER N, B, QUOT, REM, POT, VAL
-      VAL = 0
-      POT = 1
-      QUOT = N
-   20 IF (QUOT .GT. 0) THEN
-          REM = MOD(QUOT, B)
-          VAL = VAL + (REM * POT)
-          QUOT = QUOT / B
-          POT = POT * 10
-          GOTO 20
-      ENDIF
-      CONVRT = VAL
-      RETURN
-      END
-'''
-
-    programs = {
-        "code": code,
-        "e1": e1,
-        "e2": e2,
-        "e3": e3,
-        "e4": e4,
-        "e5": e5,
+def valid_programs():
+    v_programs = {
+        "1": "exemplo1.f",
+        "2": "exemplo2.f",
+        "3": "exemplo3.f",
+        "4": "exemplo4.f",
+        "5": "exemplo5.f",
+        "6": "code.f",
+        "7": "valid_features.f",
+        "8": "valid_logic.f",
+        "9": "valid_computed_goto.f"
     }
 
-    if option not in programs:
+    print("Available test files:")
+    for key, filename in v_programs.items():
+        print(f"{key} - {filename}")
+
+    option = input().strip()
+
+    if option not in v_programs:
         print("Invalid option")
-        return
-
-    source = programs[option]
-
-    print("\n=== TOKENS ===")
-    source = preprocess(source)
-    dump_tokens(source)
+        return 0
     
-    print("\n=== PARSE ===")
-    ast = fortran_parser.parse(source)
-    print(ast)
-    
-    print("\n=== SEMANTIC ANALYSIS ===")
-    analyzer = SemanticAnalyzer()
-    valid = analyzer.analyze(ast)
+    return v_programs[option]
 
-    if not valid:
-        return
+
+def invalid_programs():
+    i_programs = {
+        "1": "invalid_syntax.f",
+        "2": "invalid_semantics.f"
+    }
+
+    print("Available test files:")
+    for key, filename in i_programs.items():
+        print(f"{key} - {filename}")
+
+    option = input().strip()
     
-    ## else carry on to machine code generation
+    if option not in i_programs:
+        print("Invalid option")
+        return 0
+    
+    return i_programs[option]
+
+def main():
+    print("Run:")
+    print("1 - Valid Programs")
+    print("2 - Invalid Programs")
+
+    option = input().strip()
+    
+    match option:
+        case "1":
+            p = valid_programs()
+        case "2":
+            p = invalid_programs()
+        case "0":
+            print("Exiting...")
+            return
+        case _:
+            print("Invalid option")
+            return
+
+    if p == "0":
+        print("Exiting...")
+
+    try:
+        path = f"test/{p}"
+        with open(path, 'r') as f:
+            source = f.read()
+
+        print("\n=== TOKENS ===")
+        source = preprocess(source)
+        dump_tokens(source)
+
+        print("\n=== PARSE ===")
+        ast = fortran_parser.parse(source)
+        print(ast)
+
+        print("\n=== SEMANTIC ANALYSIS ===")
+        analyzer = SemanticAnalyzer()
+        valid = analyzer.analyze(ast)
+
+        if not valid:
+            return
+
+        ## else carry on to machine code generation
+    except Exception as e:
+        print(f"  [-] Unexpected failure: {e}")
 
 if __name__ == '__main__':
     main()
