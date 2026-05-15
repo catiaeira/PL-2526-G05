@@ -253,6 +253,11 @@ class SemanticAnalyzer:
     def visit_goto_statement(self, node):
         self._try_catch(self.symbols.declare_label, node["label"])
 
+    def visit_computed_goto_statement(self, node):
+        for l in node["labels"]:
+            self._try_catch(self.symbols.declare_label, l)
+        self.visit(node["index"])
+
     def visit_read_statement(self, node):
         for item in node["items"]:
             if item.get("name"): self._try_catch(self.symbols.initialize, item["name"])
