@@ -119,6 +119,15 @@ def generate_expression(expression):
             var_idx, _ = symbol_table.lookup(expression["name"])
             return [f"PUSHG {var_idx}"]
 
+        case "unary_opeation":
+            instructions = []
+            instructions += generate_expression(expression["operand"])
+            match expression["operator"]:
+                case ".NOT.":
+                    instructions += ["NOT"]
+
+            return instructions
+
         case "binary_operation":
             instructions = []
             instructions += generate_expression(expression["left"])
@@ -137,8 +146,6 @@ def generate_expression(expression):
                     instructions += ["AND"]
                 case ".OR.":
                     instructions += ["OR"]
-                case ".NOT.":
-                    instructions += ["NOT"]
                 case ".EQ.":
                     instructions += ["EQUAL"]
                 case ".NE.":
