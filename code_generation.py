@@ -160,6 +160,9 @@ def generate_expression(expression):
                     instructions += ["SUPEQ"]
             return instructions
 
+        case "function_call":
+            return generate_function_call(expression)
+
     print("WARNING: Added no instructions in generate_expression")
     return ["// added no instructions"]
 
@@ -340,6 +343,38 @@ def generate_do(do_stmt, body_stmts, start_index) -> tuple[list[str], int]:
     instructions += [f"POP {npop}"]
 
     return (instructions, i)
+
+
+def generate_function_call(expr_dict):
+    """
+    Generates code for a function call.
+    First, it matches the function name to determine if it's an intrinsic function, in which case the instructions
+    are directly inlined.
+    Takes a dict of the form {node: 'function_call', name: string, arguments: list}
+    """
+    name = expr_dict["name"]
+    args = expr_dict["arguments"]
+    
+    # intrinsic functions
+    match name:
+        case "MOD":
+            instructions = []
+            instructions += generate_expression(args[0])
+            instructions += generate_expression(args[1])
+            instructions += ["MOD"]
+            return instructions
+        
+        # case "ABS": ...
+        # case "MIN": ...
+        # case "MAX": ...
+    
+    # user-defined function — full CALL
+    # TODO
+    instructions = []
+    for arg in args:
+        instructions += generate_expression(arg)
+    instructions += [f"CALL {name}"]
+    return instructions
 
 
 def unwrap(item):
