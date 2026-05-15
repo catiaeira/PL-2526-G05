@@ -19,7 +19,7 @@ class CodeGenSymbolTable:
         self.global_index += 1
         return index
 
-    def lookup(self, name:str) -> tuple[int, str]:
+    def lookup(self, name: str) -> tuple[int, str]:
         """ Returns a tuple of the form (index, data_type). """
         return self.variable_dict[name]
 
@@ -28,3 +28,6 @@ class CodeGenSymbolTable:
         self.temp_vars_stack.pop()
         self.global_index -= 1
 
+    def contains(self, name: str) -> bool:
+        """ Checks if a variable name is part of the symbol table. """
+        return name in self.variable_dict

@@ -36,12 +36,18 @@ def generate_print(stmt_dict):
 def generate_declaration_integer(variables):
     """
     Generates code for an integer variable declaration.
-    Takes a list of dicts of the form {name: string}
+    Takes a list of dicts of the form {node: 'variable, name: string, dimensions: {node: 'dimension,
+    first_dim: int, second_dim: ???}}. dimension is only present of the variable is an array.
     """
     instructions: list[str] = []
     for var_dict in variables:
-        index = symbol_table.insert(var_dict["name"], "INTEGER")
-        instructions += ["PUSHI 0", f"STOREG {index}"]
+        if var_dict.get("dimensions") is not None:  # means this is an array
+            index = symbol_table.insert(var_dict["name"], "INTEGER_ARRAY")
+            size = var_dict["dimensions"]["first_dim"]
+            instructions += [f"ALLOC {size}", f"STOREG {index}"]
+        else:
+            index = symbol_table.insert(var_dict["name"], "INTEGER")
+            instructions += ["PUSHI 0", f"STOREG {index}"]
     return instructions
 
 
@@ -76,18 +82,39 @@ def generate_declaration(stmt_dict):
 def generate_read(stmt_dict):
     """
     Generates code for a read statement.
-    Takes a dict of the form {type: 'read', controls: ???, items: list}.
+    Takes a dict of the form {node: 'read_statement', controls: ???, items: list}.
     The items list contains dicts of the form {name: string}.
     """
     instructions: list[str] = []
     for item in stmt_dict["items"]:
-        var_name = item["name"]
-        index, data_type = symbol_table.lookup(var_name)
-        match data_type:
-            case "INTEGER":
-                instructions += ["READ", "ATOI", f"STOREG {index}"]
+        name = item["name"]
+        index, data_type = symbol_table.lookup(name)
+        if item["node"] == "function_call" and symbol_table.contains(name):
+            indices = item["arguments"]
+            match data_type:
+                case "INTEGER_ARRAY":
+                    # PUSHI 1 and SUB make the translation from Fortran array indexing to the VM (1 vs 0 based)
+                    instructions += [f"PUSHG {index}"] + generate_expression(indices[0]) + ["PUSHI 1", "SUB", "READ", "ATOI", "STOREN"]
+        else:
+            match data_type:
+                case "INTEGER":
+                    instructions += ["READ", "ATOI", f"STOREG {index}"]
 
     return instructions
+
+
+def generate_array_access(expr_dict):
+    """
+    Generates code for an array read access.
+    Takes a dict of the form {node: 'function_call', name: string, arguments: list}.
+    """
+    name = expr_dict["name"]
+    indices = expr_dict["arguments"]
+
+    array_idx, _ = symbol_table.lookup(name)
+    # only supporting 1d arrays for now
+    # PUSHI 1 and SUB make the translation from Fortran array indexing to the VM (1 vs 0 based)
+    return [f"PUSHG {array_idx}"] + generate_expression(indices[0]) + ["PUSHI 1", "SUB", "LOADN"]
 
 
 def generate_expression(expression):
@@ -161,7 +188,11 @@ def generate_expression(expression):
             return instructions
 
         case "function_call":
-            return generate_function_call(expression)
+            name = expression["name"]
+            if symbol_table.contains(name):  # this means this function_call is actually an array access
+                return generate_array_access(expression)
+            else:
+                return generate_function_call(expression)
 
     print("WARNING: Added no instructions in generate_expression")
     return ["// added no instructions"]
@@ -170,11 +201,20 @@ def generate_assignment(stmt_dict):
     """
     Generates code for an assignment statement.
     Takes a dict of the form {node: 'assignment', target: {node: 'variable_reference', name: string}, value: expression}.
+    The target can also be an array: {node: 'array_reference', name: string, indices: list}.
     """
-    var_name = stmt_dict["target"]["name"]
-    expression = stmt_dict["value"]
-    index, _ = symbol_table.lookup(var_name)
-    return generate_expression(expression) + [f"STOREG {index}"]
+    target = stmt_dict["target"]
+    name = target["name"]
+    value = stmt_dict["value"]
+    index, _ = symbol_table.lookup(name)
+
+    # here the array access appears as array_reference, not as function_call
+    if target["node"] == "array_reference":
+        indices = target["arguments"]
+        # PUSHI 1 and SUB make the translation from Fortran array indexing to the VM (1 vs 0 based)
+        return [f"PUSHG {index}"] + generate_expression(indices[0]) + ["PUSHI 1", "SUB"] + generate_expression(value) + ["STOREN"]
+    else:
+        return generate_expression(value) + [f"STOREG {index}"]
 
 
 def generate_goto(stmt_dict):
