@@ -197,7 +197,7 @@ def generate_expression(expression):
             push_instr = f"PUSHG {var_idx}" if stack_pointer == 0 else f"PUSHL {var_idx}"
             return [push_instr]
 
-        case "unary_opeation":
+        case "unary_operation":
             instructions = []
             instructions += generate_expression(expression["operand"])
             match expression["operator"]:
