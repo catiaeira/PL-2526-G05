@@ -34,9 +34,9 @@ def generate_print(stmt_dict):
                 instructions += [push_instr, write_instruction]
             case "function_call":
                 name = item["name"]
-                if symbol_table_stack[stack_pointer].contains(name):  # means this is actually an array access
-                    instructions += generate_array_access(item)
-                else:
+                # first check if this is really a function
+                # if not, it's an array access
+                if name in functions:
                     instructions += generate_function_call(item)
                     func_info = functions.get(name)
                     if func_info:
@@ -49,6 +49,11 @@ def generate_print(stmt_dict):
                                 instructions += ["WRITEF"]
                     else:
                         print("WARNING: Function with unknown / not supported type detected in generate_print")
+                elif symbol_table_stack[stack_pointer].contains(name):
+                    instructions += generate_array_access(item)
+                else:
+                    # intrinsic or unknown
+                    instructions += generate_function_call(item)
 
 
     return instructions + ["WRITELN"]
@@ -225,9 +230,14 @@ def generate_expression(expression):
 
         case "function_call":
             name = expression["name"]
-            if symbol_table_stack[stack_pointer].contains(name):  # this means this function_call is actually an array access
+            # check if it's really a function first
+            # if not, it's an array access
+            if name in functions:
+                return generate_function_call(expression)
+            elif symbol_table_stack[stack_pointer].contains(name):
                 return generate_array_access(expression)
             else:
+                # intrinsic function or error
                 return generate_function_call(expression)
 
     print("WARNING: Added no instructions in generate_expression")
