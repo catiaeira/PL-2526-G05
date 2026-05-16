@@ -2,8 +2,10 @@ import sys
 import parser as fortran_parser
 from code_gen_symbol_table import CodeGenSymbolTable
 
-symbol_table = CodeGenSymbolTable()
+symbol_table_stack = [CodeGenSymbolTable(0)]
+stack_pointer = 0
 if_counter = 0
+functions = {}  # {name: {"return_type": "", "n_params": int}}
 
 def generate_print(stmt_dict):
     """
@@ -15,20 +17,39 @@ def generate_print(stmt_dict):
 
     instructions: list[str] = []
     for item in items:
-        node = item["node"]
-        if node == "string_literal":
-            instructions += [f"PUSHS \"{item['value']}\"", "WRITES"]
-        elif node == "variable_reference":
-            var_name = item["name"]
-            index, data_type = symbol_table.lookup(var_name)
-            write_instruction = ""
-            match data_type:
-                case "INTEGER":
-                    write_instruction = "WRITEI"
-                case "REAL":
-                    write_instruction = "WRITEF"
+        match item["node"]:
+            case "string_literal":
+                instructions += [f"PUSHS \"{item['value']}\"", "WRITES"]
+            case "variable_reference":
+                var_name = item["name"]
+                index, data_type = symbol_table_stack[stack_pointer].lookup(var_name)
+                write_instruction = ""
+                match data_type:
+                    case "INTEGER":
+                        write_instruction = "WRITEI"
+                    case "REAL":
+                        write_instruction = "WRITEF"
 
-            instructions += [f"PUSHG {index}", write_instruction]
+                push_instr = f"PUSHG {index}" if stack_pointer == 0 else f"PUSHL {index}"
+                instructions += [push_instr, write_instruction]
+            case "function_call":
+                name = item["name"]
+                if symbol_table_stack[stack_pointer].contains(name):  # means this is actually an array access
+                    instructions += generate_array_access(item)
+                else:
+                    instructions += generate_function_call(item)
+                    func_info = functions.get(name)
+                    if func_info:
+                        match func_info["return_type"]:
+                            case "INTEGER":
+                                instructions += ["WRITEI"]
+                            case "LOGICAL":
+                                instructions += ["WRITEI"]
+                            case "REAL":
+                                instructions += ["WRITEF"]
+                    else:
+                        print("WARNING: Function with unknown / not supported type detected in generate_print")
+
 
     return instructions + ["WRITELN"]
 
@@ -41,13 +62,19 @@ def generate_declaration_integer(variables):
     """
     instructions: list[str] = []
     for var_dict in variables:
+        name = var_dict["name"]
+        # skip variables that are function arguments and therefore were already inserted in the symbol table
+        if stack_pointer != 0 and symbol_table_stack[stack_pointer].lookup(name) != None:
+            continue
         if var_dict.get("dimensions") is not None:  # means this is an array
-            index = symbol_table.insert(var_dict["name"], "INTEGER_ARRAY")
+            index = symbol_table_stack[stack_pointer].insert(name, "INTEGER_ARRAY")
             size = var_dict["dimensions"]["first_dim"]
-            instructions += [f"ALLOC {size}", f"STOREG {index}"]
+            store_instr = "STOREG" if stack_pointer == 0 else "STOREL"
+            instructions += [f"ALLOC {size}", f"{store_instr} {index}"]
         else:
-            index = symbol_table.insert(var_dict["name"], "INTEGER")
-            instructions += ["PUSHI 0", f"STOREG {index}"]
+            index = symbol_table_stack[stack_pointer].insert(name, "INTEGER")
+            store_instr = "STOREG" if stack_pointer == 0 else "STOREL"
+            instructions += ["PUSHI 0", f"{store_instr} {index}"]
     return instructions
 
 
@@ -58,8 +85,13 @@ def generate_declaration_logical(variables):
     """
     instructions: list[str] = []
     for var_dict in variables:
-        index = symbol_table.insert(var_dict["name"], "LOGICAL")
-        instructions += ["PUSHI 0", f"STOREG {index}"]
+        name = var_dict["name"]
+        # skip variables that are function arguments and therefore were already inserted in the symbol table
+        if stack_pointer != 0 and symbol_table_stack[stack_pointer].lookup(name) != None:
+            continue
+        index = symbol_table_stack[stack_pointer].insert(name, "LOGICAL")
+        store_instr = "STOREG" if stack_pointer == 0 else "STOREL"
+        instructions += ["PUSHI 0", f"{store_instr} {index}"]
     return instructions
 
 
@@ -88,17 +120,19 @@ def generate_read(stmt_dict):
     instructions: list[str] = []
     for item in stmt_dict["items"]:
         name = item["name"]
-        index, data_type = symbol_table.lookup(name)
-        if item["node"] == "function_call" and symbol_table.contains(name):
+        index, data_type = symbol_table_stack[stack_pointer].lookup(name)
+        if item["node"] == "function_call" and symbol_table_stack[stack_pointer].contains(name):  # this is an array access
             indices = item["arguments"]
             match data_type:
                 case "INTEGER_ARRAY":
+                    push_instr = f"PUSHG {index}" if stack_pointer == 0 else f"PUSHL {index}"
                     # PUSHI 1 and SUB make the translation from Fortran array indexing to the VM (1 vs 0 based)
-                    instructions += [f"PUSHG {index}"] + generate_expression(indices[0]) + ["PUSHI 1", "SUB", "READ", "ATOI", "STOREN"]
+                    instructions += [push_instr] + generate_expression(indices[0]) + ["PUSHI 1", "SUB", "READ", "ATOI", "STOREN"]
         else:
             match data_type:
                 case "INTEGER":
-                    instructions += ["READ", "ATOI", f"STOREG {index}"]
+                    store_instr = "STOREG" if stack_pointer == 0 else "STOREL"
+                    instructions += ["READ", "ATOI", f"{store_instr} {index}"]
 
     return instructions
 
@@ -111,10 +145,11 @@ def generate_array_access(expr_dict):
     name = expr_dict["name"]
     indices = expr_dict["arguments"]
 
-    array_idx, _ = symbol_table.lookup(name)
+    array_idx, _ = symbol_table_stack[stack_pointer].lookup(name)
+    push_instr = f"PUSHG {array_idx}" if stack_pointer == 0 else f"PUSHL {array_idx}"
     # only supporting 1d arrays for now
     # PUSHI 1 and SUB make the translation from Fortran array indexing to the VM (1 vs 0 based)
-    return [f"PUSHG {array_idx}"] + generate_expression(indices[0]) + ["PUSHI 1", "SUB", "LOADN"]
+    return [push_instr] + generate_expression(indices[0]) + ["PUSHI 1", "SUB", "LOADN"]
 
 
 def generate_expression(expression):
@@ -143,8 +178,9 @@ def generate_expression(expression):
             return [f"PUSHS \"{expression['value']}\""]
 
         case "variable_reference":
-            var_idx, _ = symbol_table.lookup(expression["name"])
-            return [f"PUSHG {var_idx}"]
+            var_idx, _ = symbol_table_stack[stack_pointer].lookup(expression["name"])
+            push_instr = f"PUSHG {var_idx}" if stack_pointer == 0 else f"PUSHL {var_idx}"
+            return [push_instr]
 
         case "unary_opeation":
             instructions = []
@@ -189,7 +225,7 @@ def generate_expression(expression):
 
         case "function_call":
             name = expression["name"]
-            if symbol_table.contains(name):  # this means this function_call is actually an array access
+            if symbol_table_stack[stack_pointer].contains(name):  # this means this function_call is actually an array access
                 return generate_array_access(expression)
             else:
                 return generate_function_call(expression)
@@ -206,15 +242,17 @@ def generate_assignment(stmt_dict):
     target = stmt_dict["target"]
     name = target["name"]
     value = stmt_dict["value"]
-    index, _ = symbol_table.lookup(name)
+    index, _ = symbol_table_stack[stack_pointer].lookup(name)
 
     # here the array access appears as array_reference, not as function_call
     if target["node"] == "array_reference":
         indices = target["arguments"]
+        push_instr = f"PUSHG {index}" if stack_pointer == 0 else f"PUSHL {index}"
         # PUSHI 1 and SUB make the translation from Fortran array indexing to the VM (1 vs 0 based)
-        return [f"PUSHG {index}"] + generate_expression(indices[0]) + ["PUSHI 1", "SUB"] + generate_expression(value) + ["STOREN"]
+        return [push_instr] + generate_expression(indices[0]) + ["PUSHI 1", "SUB"] + generate_expression(value) + ["STOREN"]
     else:
-        return generate_expression(value) + [f"STOREG {index}"]
+        store_instr = "STOREG" if stack_pointer == 0 else "STOREL"
+        return generate_expression(value) + [f"{store_instr} {index}"]
 
 
 def generate_goto(stmt_dict):
@@ -294,6 +332,8 @@ def generate_stmt(label, stmt_dict):
             stmt_instructions = generate_goto(stmt_dict)
         case "if_statement":
             stmt_instructions = generate_if(stmt_dict)
+        case "return_statement":
+            stmt_instructions = ["RETURN"]
 
     return label_instruction + stmt_instructions
 
@@ -320,10 +360,11 @@ def generate_do(do_stmt, body_stmts, start_index) -> tuple[list[str], int]:
     end_idx = -1
     if isinstance(end, dict) and end.get("node") == "variable_reference":
         end_temp = False
-        end_idx, _ = symbol_table.lookup(end["name"])
+        end_idx, _ = symbol_table_stack[stack_pointer].lookup(end["name"])
     else:
-        end_idx = symbol_table.insert_temp("__tmp__end", "INTEGER")
-        instructions += generate_expression(end) + [f"STOREG {end_idx}"]
+        end_idx = symbol_table_stack[stack_pointer].insert_temp("__tmp__end", "INTEGER")
+        store_instr = "STOREG" if stack_pointer == 0 else "STOREL"
+        instructions += generate_expression(end) + [f"{store_instr} {end_idx}"]
 
     step_temp = True
     step_idx = -1
@@ -331,24 +372,28 @@ def generate_do(do_stmt, body_stmts, start_index) -> tuple[list[str], int]:
         step = {"node": "integer_literal", "value": 1}
     if isinstance(step, dict) and step.get("node") == "variable_reference":
         step_temp = False
-        step_idx, _ = symbol_table.lookup(step["name"])
+        step_idx, _ = symbol_table_stack[stack_pointer].lookup(step["name"])
     else:
-        step_idx = symbol_table.insert_temp("__tmp__step", "INTEGER")
-        instructions += generate_expression(step) + [f"STOREG {step_idx}"]
+        step_idx = symbol_table_stack[stack_pointer].insert_temp("__tmp__step", "INTEGER")
+        store_instr = "STOREG" if stack_pointer == 0 else "STOREL"
+        instructions += generate_expression(step) + [f"{store_instr} {step_idx}"]
 
-    loop_var_idx, _ = symbol_table.lookup(loop_var)
+    loop_var_idx, _ = symbol_table_stack[stack_pointer].lookup(loop_var)
 
     # if the start value is passed from a variable, we must get that value
     # otherwise, it's just an expression
     if isinstance(start, dict) and start.get("node") == "id":
-        start_idx, _ = symbol_table.lookup(start["name"])
-        instructions += [f"PUSHG {start_idx}"]
+        start_idx, _ = symbol_table_stack[stack_pointer].lookup(start["name"])
+        push_instr = f"PUSHG {start_idx}" if stack_pointer == 0 else f"PUSHL {start_idx}"
+        instructions += [push_instr]
     else:
         instructions += generate_expression(start)
-    instructions += [f"STOREG {loop_var_idx}"]
+    store_instr = "STOREG" if stack_pointer == 0 else "STOREL"
+    instructions += [f"{store_instr} {loop_var_idx}"]
 
+    push_instr = "PUSHG" if stack_pointer == 0 else "PUSHL"
     # check loop condition
-    instructions += [f"{label}:", f"\tPUSHG {loop_var_idx}", f"\tPUSHG {end_idx}", "\tINFEQ", f"\tJZ {label}end"]
+    instructions += [f"{label}:", f"\t{push_instr} {loop_var_idx}", f"\t{push_instr} {end_idx}", "\tINFEQ", f"\tJZ {label}end"]
 
     # loop body
     body_instructions: list[str] = []
@@ -369,16 +414,18 @@ def generate_do(do_stmt, body_stmts, start_index) -> tuple[list[str], int]:
         instructions += with_tab
 
     # increment
-    instructions += [f"\tPUSHG {step_idx}", f"\tPUSHG {loop_var_idx}", "\tADD", f"\tSTOREG {loop_var_idx}", f"\tJUMP {label}", f"{label}end:"]
+    push_instr = "PUSHG" if stack_pointer == 0 else "PUSHL"
+    store_instr = "STOREG" if stack_pointer == 0 else "STOREL"
+    instructions += [f"\t{push_instr} {step_idx}", f"\t{push_instr} {loop_var_idx}", "\tADD", f"\t{store_instr} {loop_var_idx}", f"\tJUMP {label}", f"{label}end:"]
 
     # recall if we had to create temporary variable to pop the correct amount
     # for the symbol_table, the pops don't even have to match the order, they just need to be in the same amount
     npop = 0
     if end_temp:
-        symbol_table.pop_temp()
+        symbol_table_stack[stack_pointer].pop_temp()
         npop += 1
     if step_temp:
-        symbol_table.pop_temp()
+        symbol_table_stack[stack_pointer].pop_temp()
         npop += 1
     instructions += [f"POP {npop}"]
 
@@ -408,12 +455,75 @@ def generate_function_call(expr_dict):
         # case "MIN": ...
         # case "MAX": ...
     
-    # user-defined function — full CALL
-    # TODO
+    # user-defined function - full CALL
+
     instructions = []
+
+    # determine what instruction to use to reserve space for the return value based on the saved function return type
+    func_info = functions.get(name)
+    if func_info:
+        match func_info["return_type"]:
+            case "INTEGER":
+                instructions += ["PUSHI 0"]
+            case "LOGICAL":
+                instructions += ["PUSHI 0"]
+            case "REAL":
+                instructions += ["PUSHF 0"]
+
     for arg in args:
         instructions += generate_expression(arg)
-    instructions += [f"CALL {name}"]
+    instructions += [f"PUSHA {name}", "CALL", f"POP {len(args)}"]
+    return instructions
+
+
+def generate_function(func_dict):
+    """
+    Generates code for a function.
+    Takes a dict of the form {node: 'function', name: string, return_type: string,
+    parameters: list[{node: 'parameter', name: string}], body: list[stmts]}
+    """
+    global stack_pointer
+    func_name = func_dict["name"]
+    return_type = func_dict["return_type"]
+    params = func_dict["parameters"]
+    n_params = len(params)
+    body = func_dict["body"]
+
+    symbol_table_stack.append(CodeGenSymbolTable(-(n_params+1)))
+    stack_pointer += 1
+
+    # register function name as return variable at the bottom of the stack
+    symbol_table_stack[stack_pointer].insert(func_name, return_type)
+
+    # collect the names of the parameters
+    param_to_type = {}
+    for param in params:
+        param_to_type[param["name"]] = "undefined"
+
+    # traverse the body while there are variable declarations to find the type of every parameter
+    for stmt_dict in body:
+        if stmt_dict["node"] != "variable_declaration":
+            break
+        data_type = stmt_dict["data_type"]
+        for var in stmt_dict["variables"]:
+            if var["name"] in param_to_type:
+                param_to_type[var["name"]] = data_type
+
+    # now insert the parameters with the correct type, in the correct order, but reversed to get the correct stack layout
+    for param in reversed(params):
+        name = param["name"]
+        data_type = param_to_type.get(name)
+        # implicit types
+        if data_type is None:
+            data_type = "INTEGER" if name[0] in "IJKLMN" else "REAL"
+        symbol_table_stack[stack_pointer].insert(name, data_type)
+
+    instructions = [f"{func_name}:"]
+    instructions += generate_code(body)
+
+    symbol_table_stack.pop()
+    stack_pointer -= 1
+
     return instructions
 
 
@@ -433,16 +543,7 @@ def generate_code(value):
 
     instructions = []
 
-    if value is None:
-        pass
-    elif isinstance(value, bool):
-        pass
-    elif isinstance(value, (int, float)):
-        pass
-    elif isinstance(value, str):
-        pass
-
-    elif isinstance(value, list):
+    if isinstance(value, list):
         i: int = 0
         while i < len(value):
             label, stmt_dict = unwrap(value[i])
@@ -455,21 +556,47 @@ def generate_code(value):
                 i += 1
 
     elif isinstance(value, dict):
-        if value.get("node") == "program":
-            print(f"Generating code for program {value['name']}")
-            instructions += generate_code(value["body"])
+        node = value.get("node")
+        match node:
+            case "program":
+                print(f"Generating code for program {value['name']}")
+                instructions += generate_code(value["body"])
+            # this won't really happen
+            case "function":
+                print(f"Generating code for function {value['name']}")
+                instructions += generate_function(value)
 
     else:
-        pass
+        print("WARNING: Unexpected type found when traversing the AST in generate_code")
 
     return instructions
+
+
+def generate_code_main(ast):
+    # before going to the main program, check every function header to collect the return types
+    for node in ast:
+        if node["node"] == "function":
+            func_name = node["name"]
+            return_type = node["return_type"]
+            n_params = len(node["parameters"])
+            functions[func_name] = {"return_type": return_type, "n_params": n_params}
+    
+    instructions = generate_code(ast[0])
+    instructions += ["JUMP endprogram"]
+    rest = ast[1:]
+    for node in rest:
+        match node["node"]:
+            case "function":
+                instructions += generate_function(node)
+            case "subroutine":
+                pass
+    instructions += ["endprogram:"]
+    print("\n===== VM Instructions =====\n")
+    for instruction in instructions:
+        print(instruction)
 
 
 with open(sys.argv[1], "r") as source:
     text = source.read()
     ast = fortran_parser.parse(text)
-
-instructions = generate_code(ast[0])
-print("\n===== VM Instructions =====\n")
-for instruction in instructions:
-    print(instruction)
+    generate_code_main(ast)
