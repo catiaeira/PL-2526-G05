@@ -20,6 +20,7 @@ def generate_print(stmt_dict):
         match item["node"]:
             case "string_literal":
                 instructions += [f"PUSHS \"{item['value']}\"", "WRITES"]
+
             case "variable_reference":
                 var_name = item["name"]
                 index, data_type = symbol_table_stack[stack_pointer].lookup(var_name)
@@ -32,6 +33,12 @@ def generate_print(stmt_dict):
 
                 push_instr = f"PUSHG {index}" if stack_pointer == 0 else f"PUSHL {index}"
                 instructions += [push_instr, write_instruction]
+
+            case "binary_operation":
+                instructions += generate_expression(item)
+                # for now, default to integer
+                instructions += ["WRITEI"]
+
             case "function_call":
                 name = item["name"]
                 # first check if this is really a function
@@ -54,6 +61,9 @@ def generate_print(stmt_dict):
                 else:
                     # intrinsic or unknown
                     instructions += generate_function_call(item)
+                    match name:
+                        case "MOD":
+                            instructions += ["WRITEI"]
 
 
     return instructions + ["WRITELN"]
