@@ -402,7 +402,7 @@ def generate_do(do_stmt, body_stmts, start_index) -> tuple[list[str], int]:
 
     # if the start value is passed from a variable, we must get that value
     # otherwise, it's just an expression
-    if isinstance(start, dict) and start.get("node") == "id":
+    if isinstance(start, dict) and start.get("node") == "variable_reference":
         start_idx, _ = symbol_table_stack[stack_pointer].lookup(start["name"])
         push_instr = f"PUSHG {start_idx}" if stack_pointer == 0 else f"PUSHL {start_idx}"
         instructions += [push_instr]
@@ -529,8 +529,7 @@ def generate_function(func_dict):
             if var["name"] in param_to_type:
                 param_to_type[var["name"]] = data_type
 
-    # now insert the parameters with the correct type, in the correct order, but reversed to get the correct stack layout
-    for param in reversed(params):
+    for param in params:
         name = param["name"]
         data_type = param_to_type.get(name)
         # implicit types
