@@ -1,6 +1,7 @@
 import lexer as fortran_lexer
 import parser as fortran_parser
 from semantic import SemanticAnalyzer, SemanticError, SymbolTable
+from code_generation import generate_code_main
 
 def dump_tokens(text):
     from lexer import build_lexer
@@ -21,7 +22,7 @@ def preprocess (code): # truncates code after col 72
 def main():
     print("Options:")
     print("code | e1 | e2 | e3 | e4 | e5")
-    option = input().strip()
+    option = input().strip().lower()
 
     code = """\
       ! comment
@@ -40,13 +41,15 @@ c     this is a comment
           PRINT *, 'LOW'
       ENDIF
 5     DO 20 I = 1, 5 ! comment
-          CALL LOGIT(I) !comment
+          B = LOGIT(I) !comment
    20 CONTINUE! comment
       END
 !     comment
 
-      SUBROUTINE LOGIT(VAL)
+      INTEGER FUNCTION LOGIT(VAL)
+      INTEGER VAL
       PRINT *, VAL ! comment
+      LOGIT = VAL
       END
 """
 
@@ -162,8 +165,8 @@ c     this is a comment
 
     if not valid:
         return
-    
-    ## else carry on to machine code generation
+
+    generate_code_main (ast)
 
 if __name__ == '__main__':
     main()
