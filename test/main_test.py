@@ -8,6 +8,7 @@ from lexer import build_lexer
 import parser as fortran_parser
 from semantic import SemanticAnalyzer
 from test_registry import ALL_TESTS
+from code_generation import generate_code_main
 
 def verify_expected_errors(expected_errors, actual_errors):
     # if we expected no errors and caught some, immediately fail and list them
@@ -73,7 +74,9 @@ def run_pipeline(filename, test):
                 # 2. Semantic Analysis
                 analyzer = SemanticAnalyzer()
                 if ast and not fortran_parser.syntax_errors:
-                    analyzer.analyze(ast)
+                    valid = analyzer.analyze(ast)
+                    if valid:
+                        generate_code_main(ast)
 
         # ─────────────────────────────────────────────────────────────────
         # EXTRACTION & ASSERTIONS

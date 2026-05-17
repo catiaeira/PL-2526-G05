@@ -17,13 +17,31 @@ class SemanticAnalyzer:
 
     def _get_binop_type(self, left, right, op):
         numeric = ["INTEGER", "REAL"]
-        if left in numeric and right in numeric:
-            return "REAL" if "REAL" in [left, right] else "INTEGER"
-        if op == "CONCAT" and left == "CHARACTER" and right == "CHARACTER":
-            return "CHARACTER"
-        if op in [".EQ.", ".NE.", ".GT.", ".LT.", ".GE.", ".LE."]:
-            return "LOGICAL"
-        return "UNKNOWN"
+        numerical_ops = ["+", "-", "*", "/", "**"]
+        relational_ops = [".EQ.", ".NE.", ".GT.", ".LT.", ".GE.", ".LE."]
+        logical_ops = [".AND.", ".OR.", ".EQV.", ".NEQV."]
+
+        # arithmetic
+        if op in numerical_ops:
+            if left in numeric and right in numeric:
+                return "REAL" if "REAL" in [left, right] else "INTEGER"
+
+        # concat
+        if op == "CONCAT" or op == "//":
+            if left == "CHARACTER" and right == "CHARACTER":
+                return "CHARACTER"
+
+        # relational (logical)
+        if op in relational_ops:
+            if left in numeric and right in numeric:
+                return "LOGICAL"
+
+        # logical
+        if op in logical_ops:
+            if left == "LOGICAL" and right == "LOGICAL":
+                return "LOGICAL"
+
+        return "INVALID"
 
     # ---- ENTRY POINT ----
     def analyze(self, ast):
@@ -111,6 +129,7 @@ class SemanticAnalyzer:
         var = self._try_catch(self.symbols.lookup_var, node["name"])
         if var is None:
             self.errors.append(SemanticError(f"Undeclared variable: {node["name"]}"))
+            return
         elif var and not var["initialized"]:
             self.errors.append(SemanticError(f"Variable '{node['name']}' used before initialization"))
         return var["type"] if var else "UNKNOWN"
@@ -128,11 +147,13 @@ class SemanticAnalyzer:
 
     def visit_binary_operation(self, node):
         left, right = self.visit(node["left"]), self.visit(node["right"])
+        if not left or not right:
+            return
         op = node["operator"]
-        if op == "CONCAT": return "CHARACTER"
-        if op in [".GT.", ".LT.", ".EQ.", ".NE.", ".GE.", ".LE.", ".AND.", ".OR.", ".NOT.", ".EQV.", ".NEQV."]:
-            return "LOGICAL"
-        return self._get_binop_type(left, right, op)
+        type = self._get_binop_type(left, right, op)
+        if type == "INVALID":
+            self.errors.append(SemanticError(f"Mixing incompatible types in binary operation '{op}'"))
+        return type 
 
     def visit_unary_operation(self, node):
         op_type = self.visit(node["operand"])
@@ -221,8 +242,7 @@ class SemanticAnalyzer:
         target = node["target"]
         if target["node"] in ["variable_reference", "array_reference"]:
             self._try_catch(self.symbols.initialize, target["name"])
-            if target["node"] == "array_reference":
-                self.visit(target.get("indices", []))
+            self.visit(target)
 
     def visit_variable_declaration(self, node):
         for var in node["variables"]:

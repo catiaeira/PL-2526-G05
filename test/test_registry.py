@@ -31,7 +31,7 @@ ALL_TESTS = [
         should_pass=False, 
         syntax_errors=[],
         semantic_errors=[
-            "Mixing incompatible types in operation" # !!!!
+            "Mixing incompatible types in binary operation",
             "Label referenced but never defined: 999",
             "'MYFUNC' is a function; use in expression"
         ]
@@ -75,7 +75,8 @@ ALL_TESTS = [
         should_pass=False, 
         syntax_errors=[],
         semantic_errors=[
-            "Cannot call subroutine 'LOGIT' as function"
+            "Cannot call subroutine 'LOGIT' as function",
+            "Mixing incompatible types in binary operation"
         ]
     ),
     TestProgram(

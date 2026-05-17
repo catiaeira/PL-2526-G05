@@ -75,6 +75,7 @@ class SymbolTable:
 
     # declare a new variable (could be scalar or an array)
     def declare_var(self, id, vtype=None, fst_d=None, snd_d=None):
+        id = id.upper()
         scope = self.current_var_scope()
 
         if id in scope:
@@ -97,6 +98,7 @@ class SymbolTable:
     
     # return the variable info, but only if declared
     def lookup_var(self, id):
+        id = id.upper()
         scope = self.current_var_scope()
 
         if id in scope:
@@ -105,6 +107,7 @@ class SymbolTable:
 
     # mark a variable as initialized, implicitly declare it if not existent
     def initialize(self, id):
+        id = id.upper()
         var = self.lookup_var(id)
         if not var:
             self.declare_var(id)  # implicit typing
