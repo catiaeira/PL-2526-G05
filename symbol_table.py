@@ -67,7 +67,7 @@ class SymbolTable:
     def _types_compatible(self, given, expected):
         if given == expected:
             return True
-        if given in ("INTEGER", "REAL") and expected in ("INTEGER", "REAL"):
+        if given == "INTEGER" and expected in ("INTEGER", "REAL"):
             return True
         return False
 

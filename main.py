@@ -1,6 +1,7 @@
 import lexer as fortran_lexer
 import parser as fortran_parser
 from semantic import SemanticAnalyzer
+from test.test_registry import get_valid_programs, get_invalid_programs
 
 def dump_tokens(text):
     from lexer import build_lexer
@@ -18,49 +19,19 @@ def preprocess (code): # truncates code after col 72
     truncated_lines = [line[:72] for line in lines]
     return "\n".join(truncated_lines)
 
-def valid_programs():
-    v_programs = {
-        "1": "exemplo1.f",
-        "2": "exemplo2.f",
-        "3": "exemplo3.f",
-        "4": "exemplo4.f",
-        "5": "exemplo5.f",
-        "6": "code.f",
-        "7": "valid_features.f",
-        "8": "valid_logic.f",
-        "9": "valid_computed_goto.f"
-    }
-
+def display_program_menu(program_list):
+    menu_map = {str(i + 1): p.filename for i, p in enumerate(program_list)}
+    
     print("Available test files:")
-    for key, filename in v_programs.items():
+    for key, filename in menu_map.items():
         print(f"{key} - {filename}")
-
+        
     option = input().strip()
-
-    if option not in v_programs:
+    if option not in menu_map:
         print("Invalid option")
-        return 0
-    
-    return v_programs[option]
-
-
-def invalid_programs():
-    i_programs = {
-        "1": "invalid_syntax.f",
-        "2": "invalid_semantics.f"
-    }
-
-    print("Available test files:")
-    for key, filename in i_programs.items():
-        print(f"{key} - {filename}")
-
-    option = input().strip()
-    
-    if option not in i_programs:
-        print("Invalid option")
-        return 0
-    
-    return i_programs[option]
+        return "0"
+        
+    return menu_map[option]
 
 def main():
     print("Run:")
@@ -71,9 +42,9 @@ def main():
     
     match option:
         case "1":
-            p = valid_programs()
+            p = display_program_menu(get_valid_programs())
         case "2":
-            p = invalid_programs()
+            p = display_program_menu(get_invalid_programs())
         case "0":
             print("Exiting...")
             return
@@ -82,10 +53,10 @@ def main():
             return
 
     if p == "0":
-        print("Exiting...")
+        return
 
     try:
-        path = f"test/{p}"
+        path = f"test/programs/{p}"
         with open(path, 'r') as f:
             source = f.read()
 
@@ -95,6 +66,9 @@ def main():
 
         print("\n=== PARSE ===")
         ast = fortran_parser.parse(source)
+        
+        if not ast:
+            return
         print(ast)
 
         print("\n=== SEMANTIC ANALYSIS ===")
