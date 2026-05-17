@@ -2,6 +2,7 @@ import lexer as fortran_lexer
 import parser as fortran_parser
 from semantic import SemanticAnalyzer
 from test.test_registry import get_valid_programs, get_invalid_programs
+from code_generation import generate_code_main
 
 def dump_tokens(text):
     from lexer import build_lexer
@@ -78,7 +79,8 @@ def main():
         if not valid:
             return
 
-        ## else carry on to machine code generation
+        generate_code_main (ast)
+        
     except Exception as e:
         print(f"  [-] Unexpected failure: {e}")
 
