@@ -6,10 +6,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from lexer import build_lexer
 from parser import parser
 from semantic import SemanticAnalyzer
+from test_registry import ALL_TESTS
 
 def run_pipeline(filename, expect_success=True):
     print(f"\n[RUNNING TEST]: {filename}")
-    print("-" * 30)
+    print("-" * 80)
     
     try:
         with open(filename, 'r') as f:
@@ -28,13 +29,9 @@ def run_pipeline(filename, expect_success=True):
         # Check for errors caught by _try_catch in your SemanticAnalyzer
         if analyzer.errors:
             print(f"[-] Result: FAILED (Semantic Errors Detected)")
-            for err in analyzer.errors:
-                print(f"    > {err}")
             return not expect_success
 
         # 3. Machine Code Generation (Mockup)
-        # In a real scenario, you'd call your code generator here:
-        # code = generator.generate(ast)
         print("[+] Result: SUCCESS (Program Compiled)")
         return expect_success
 
@@ -43,28 +40,16 @@ def run_pipeline(filename, expect_success=True):
         return not expect_success
 
 if __name__ == "__main__":
-    tests = [
-        ("exemplo1.f", True),
-        ("exemplo2.f", True),
-        ("exemplo3.f", True),
-        ("exemplo4.f", True),
-        ("exemplo5.f", True),
-        ("code.f", True),
-        ("valid_features.f", True),
-        ("valid_logic.f", True),
-        ("valid_computed_goto.f", True)
-        ("invalid_syntax.f", False),
-        ("invalid_semantics.f", False)
-    ]
-
     passed_count = 0
-    for file, expected in tests:
-        if run_pipeline(file, expected):
+    
+    for test in ALL_TESTS:
+        path = f"programs/{test.filename}"
+        if run_pipeline(path, test.should_pass):
             passed_count += 1
-            print(">>> VERDICT: TEST PASSED")
+            print(f">>> VERDICT: {test.filename} PASSED")
         else:
-            print(">>> VERDICT: TEST FAILED")
+            print(f">>> VERDICT: {test.filename} FAILED")
 
-    print("\n" + "="*30)
-    print(f"FINAL SCORE: {passed_count}/{len(tests)}")
-    print("="*30)
+    print("\n" + "="*80)
+    print(f"FINAL SCORE: {passed_count}/{len(ALL_TESTS)}")
+    print("="*80)
