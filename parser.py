@@ -5,6 +5,15 @@ class ParseError(Exception):
     pass
 
 # ─────────────────────────────────────────────
+# GLOBAL ERROR REGISTRY
+# ─────────────────────────────────────────────
+syntax_errors = []
+
+def reset_errors():
+    global syntax_errors
+    syntax_errors = []
+
+# ─────────────────────────────────────────────
 # TOP LEVEL
 # ─────────────────────────────────────────────
 
@@ -895,7 +904,14 @@ def p_empty(p):
     pass
 
 def p_error(t):
-    raise ParseError(f"Unexpected token: {t.type if t else '$'} in line no. {t.lineno}")
+    global syntax_errors
+    if t:
+        error_msg = f"Unexpected token: {t.type if t else '$'} on line {t.lineno}"
+        syntax_errors.append(error_msg)
+        
+        parser.errok() # allow the parser to recover and look for more errors
+    else:
+        syntax_errors.append("Unexpected End of File (EOF)")
 
 # ─────────────────────────────────────────────
 # BUILD
@@ -904,9 +920,20 @@ def p_error(t):
 parser = yacc.yacc(write_tables=False, debug=True)
 
 def parse(text):
+    reset_errors()
+    
     try:
         fortran_lexer = build_lexer()
         result = parser.parse(text, lexer=fortran_lexer)
+        
+        if syntax_errors:
+            print("\nSyntactic Errors Found:")
+            for err in syntax_errors: print(f" - {err}")
+            print()
+            return
+        print("Parsing Complete: Program is syntactically valid\n")
+            
         return result
-    except ParseError as e:
-        print("Parsing failed:", e)
+    except Exception as e:
+        print("Catastrophic parsing failure:", e)
+        return None

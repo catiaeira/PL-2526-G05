@@ -67,7 +67,7 @@ def main():
         print("\n=== PARSE ===")
         ast = fortran_parser.parse(source)
         
-        if not ast:
+        if fortran_parser.syntax_errors:
             return
         print(ast)
 
