@@ -4,31 +4,34 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from lexer import build_lexer
-from parser import parser
+import parser as fortran_parser
 from semantic import SemanticAnalyzer
 from test_registry import ALL_TESTS
 
 def run_pipeline(filename, expect_success=True):
-    print(f"\n[RUNNING TEST]: {filename}")
-    print("-" * 80)
+    print("\n" + "-" * 80)
+    print(f"[RUNNING TEST]: {filename}")
     
     try:
         with open(filename, 'r') as f:
             source = f.read()
 
-        # 1. Parsing
-        ast = parser.parse(source, lexer=build_lexer())
-        if ast is None:
-            print("[-] Result: FAILED (Syntax Error)")
+        ast = fortran_parser.parse(source)
+
+        if fortran_parser.syntax_errors:
+            print(f"[-] Result: FAILED (Syntax Errors)")
+            return not expect_success
+
+        if not ast:
+            print("[-] Result: FAILED (Empty AST)")
             return not expect_success
 
         # 2. Semantic Analysis
         analyzer = SemanticAnalyzer()
         analyzer.analyze(ast)
         
-        # Check for errors caught by _try_catch in your SemanticAnalyzer
         if analyzer.errors:
-            print(f"[-] Result: FAILED (Semantic Errors Detected)")
+            print(f"[-] Result: FAILED (Semantic Errors)")
             return not expect_success
 
         # 3. Machine Code Generation (Mockup)

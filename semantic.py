@@ -65,6 +65,7 @@ class SemanticAnalyzer:
             if self.errors:
                 print("\nSemantic Errors Found:")
                 for err in self.errors: print(f" - {err}")
+                print()
                 return 0
 
             print("Analysis complete: Program is semantically valid\n")

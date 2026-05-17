@@ -18,11 +18,11 @@ C -- ERROR 3: Label referenced but never defined (No 777 CONTINUE exists) --
   100 CONTINUE
 
 C -- ERROR 4: Routine kind mismatch (Calling a FUNCTION using a CALL statement) --
-      CALL CALC_VAL(I)
+      CALL CALCVAL(I)
       END
 
-      INTEGER FUNCTION CALC_VAL(N)
+      INTEGER FUNCTION CALCVAL(N)
       INTEGER N
-      CALC_VAL = N * 2
+      CALCVAL = N * 2
       RETURN
       END
