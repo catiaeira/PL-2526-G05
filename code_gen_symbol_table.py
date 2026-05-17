@@ -31,3 +31,13 @@ class CodeGenSymbolTable:
     def contains(self, name: str) -> bool:
         """ Checks if a variable name is part of the symbol table. """
         return name in self.variable_dict
+
+    def get_num_local_vars(self) -> int:
+        """ Returns the number of local variables alocated. """
+        # indices < 0 are function parameters and return variable
+        total = 0
+        for var in self.variable_dict:
+            idx, _ = self.variable_dict[var]
+            if idx >= 0:
+                total += 1
+        return total

@@ -331,6 +331,15 @@ def generate_if(stmt_dict):
     return instructions
 
 
+def generate_return(stmt_dict):
+    """
+    Generates code for a function return statement.
+    Takes a dict of the form {node: 'return_statement', value: ???}
+    """
+    num_local_vars = symbol_table_stack[stack_pointer].get_num_local_vars()
+    return [f"POP {num_local_vars}", "RETURN"]
+
+
 def generate_stmt(label, stmt_dict):
     """
     Generates code for a single statement.
@@ -353,7 +362,7 @@ def generate_stmt(label, stmt_dict):
         case "if_statement":
             stmt_instructions = generate_if(stmt_dict)
         case "return_statement":
-            stmt_instructions = ["RETURN"]
+            stmt_instructions = generate_return(stmt_dict)
 
     return label_instruction + stmt_instructions
 
@@ -537,7 +546,7 @@ def generate_function(func_dict):
             data_type = "INTEGER" if name[0] in "IJKLMN" else "REAL"
         symbol_table_stack[stack_pointer].insert(name, data_type)
 
-    instructions = [f"{func_name}:"]
+    instructions = ["", f"{func_name}:"]
     instructions += generate_code(body)
 
     symbol_table_stack.pop()
@@ -609,7 +618,7 @@ def generate_code_main(ast):
                 instructions += generate_function(node)
             case "subroutine":
                 pass
-    instructions += ["endprogram:"]
+    instructions += ["", "endprogram:"]
     print("\n===== VM Instructions =====\n")
     for instruction in instructions:
         print(instruction)
