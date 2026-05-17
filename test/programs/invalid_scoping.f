@@ -1,13 +1,13 @@
       PROGRAM SCOPECHECK
-      INTEGER GLOBAL_VAR
-      GLOBAL_VAR = 100
+      INTEGER GLOBALVAR
+      GLOBALVAR = 100
       CALL TARGET()
       END
 
       SUBROUTINE TARGET()
-      INTEGER LOCAL_VAR
+      INTEGER LOCALVAR
       
-C -- ERROR: GLOBAL_VAR does not exist in this local scope --
-      LOCAL_VAR = GLOBAL_VAR + 1
-      PRINT *, LOCAL_VAR
+C -- ERROR: GLOBALVAR does not exist in this local scope --
+      LOCALVAR = GLOBALVAR + 1
+      PRINT *, LOCALVAR
       END

@@ -907,7 +907,7 @@ def p_error(t):
     global syntax_errors
     if t:
         error_msg = f"Unexpected token: {t.type if t else '$'} on line {t.lineno}"
-        syntax_errors.append(error_msg)
+        syntax_errors.append(ParseError(error_msg))
         
         parser.errok() # allow the parser to recover and look for more errors
     else:

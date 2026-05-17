@@ -97,10 +97,10 @@ class SymbolTable:
     
     # return the variable info, but only if declared
     def lookup_var(self, id):
-        # search all the scopes, starting with the most recent one
-        for scope in reversed(self.__variable_scopes):
-            if id in scope:
-                return scope.get(id)
+        scope = self.current_var_scope()
+
+        if id in scope:
+            return scope.get(id)
         return None # return None instead of raising Undeclared Variable to allow the caller to decide if it should be declared implicitly or not
 
     # mark a variable as initialized, implicitly declare it if not existent
