@@ -65,6 +65,7 @@ class SemanticAnalyzer:
             if self.errors:
                 print("\nSemantic Errors Found:")
                 for err in self.errors: print(f" - {err}")
+                print()
                 return 0
 
             print("Analysis complete: Program is semantically valid\n")
@@ -108,7 +109,9 @@ class SemanticAnalyzer:
 
     def visit_variable_reference(self, node):
         var = self._try_catch(self.symbols.lookup_var, node["name"])
-        if var and not var["initialized"]:
+        if var is None:
+            self.errors.append(SemanticError(f"Undeclared variable: {node["name"]}"))
+        elif var and not var["initialized"]:
             self.errors.append(SemanticError(f"Variable '{node['name']}' used before initialization"))
         return var["type"] if var else "UNKNOWN"
 
@@ -252,6 +255,11 @@ class SemanticAnalyzer:
 
     def visit_goto_statement(self, node):
         self._try_catch(self.symbols.declare_label, node["label"])
+
+    def visit_computed_goto_statement(self, node):
+        for l in node["labels"]:
+            self._try_catch(self.symbols.declare_label, l)
+        self.visit(node["index"])
 
     def visit_read_statement(self, node):
         for item in node["items"]:
