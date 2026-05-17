@@ -624,7 +624,8 @@ def generate_code_main(ast):
         print(instruction)
 
 
-with open(sys.argv[1], "r") as source:
-    text = source.read()
-    ast = fortran_parser.parse(text)
-    generate_code_main(ast)
+if __name__ == "__main__":
+    with open(sys.argv[1], "r") as source:
+        text = source.read()
+        ast = fortran_parser.parse(text)
+        generate_code_main(ast)
