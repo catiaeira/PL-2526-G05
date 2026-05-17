@@ -11,16 +11,10 @@ Para correr o programa, corra
 
 > python main.py
 
-Insira a opção pretendida
-* `code`: Exemplo customizado de código Fortran
-* `e1`: Exemplo 1 do enunciado
-* `e2`: Exemplo 2 do enunciado
-* `e3`: Exemplo 3 do enunciado
-* `e4`: Exemplo 4 do enunciado
-* `e5`: Exemplo 5 do enunciado
+Siga as indicações dos menus de modo a escolher o programa que quer analisar e, caso válido, gerar.
 
-Para correr os testes, corra
+Para correr os 21 testes disponíveis, a partir da pasta test/, corra
 
 > python main_test.py
 
-Para correr novos programas estes devem ser colocados em `test/programs/` e declarados em `test_registery.py`
+Novos programas estes devem ser colocados em `test/programs/` e declarados devidamente em `test_registry.py`
