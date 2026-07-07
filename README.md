@@ -1,9 +1,9 @@
-# PL-2526-G05
-
-* Cátia Eira (a107382)
-* Filipa Cosquete (a106837)
-* Marco Ferreira (a106857)
-
+# Processamento de Linguagens - Projeto 25/26
+---
+### Grade: 18/20 🌟
+---
+##### Group 05: Cátia Eira (a107382), Filipa Cosquete (a106837), Marco Ferreira (a106857)
+---
 ### Requisitos para correr
 * ply >= 3.11
 
